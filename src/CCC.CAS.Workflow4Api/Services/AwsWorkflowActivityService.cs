@@ -38,19 +38,19 @@ namespace CCC.CAS.Workflow2Service.Services
 
             foreach (var a in ARNs)
             {
-                tasks.Add(Task.Run(() => { doit(a, sfClient, stoppingToken); }, stoppingToken));
+                tasks.Add(Task.Run(async () => { await doit(a, sfClient, stoppingToken).ConfigureAwait(false); }, stoppingToken));
             }
 
             Task.WaitAll(tasks.ToArray(), stoppingToken);
         }
 
-        private void doit(string arn, AmazonStepFunctionsClient sfClient, CancellationToken stoppingToken)
+        private async Task doit(string arn, AmazonStepFunctionsClient sfClient, CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
 
                 _logger.LogDebug($"{nameof(AwsWorkflowActivityService)} polling for {arn}");
-                var activityTask = Poll(sfClient, arn).Result;
+                var activityTask = await Poll(sfClient, arn).ConfigureAwait(false);
 
                 if (string.IsNullOrEmpty(activityTask?.TaskToken))
                     continue;
@@ -58,20 +58,23 @@ namespace CCC.CAS.Workflow2Service.Services
                 var workDemoActivityState = JsonSerializer
                     .Deserialize<WorkDemoActivityState>(activityTask.Input);
 
+                _logger.LogInformation("Task is {task}", activityTask.TaskToken);
+
                 if (workDemoActivityState != null)
                 {
                     workDemoActivityState = ProcessTask(arn, workDemoActivityState);
-                    if (workDemoActivityState.ScenarioNumber == 2)
+                    if (workDemoActivityState.ScenarioNumber == 1)
                     {
                         var _ = Task.Run(async () =>
                         {
-                            await Task.Delay(3000).ConfigureAwait(false);
-                            CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).RunSynchronously();
+                            _logger.LogInformation("Waiting....");
+                            await Task.Delay(30000).ConfigureAwait(false);
+                            await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false);
                         }, stoppingToken);
                     }
                     else
                     {
-                        CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).RunSynchronously();
+                        await CompleteTask (sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
                     }
                 }
                 Thread.Sleep(100);

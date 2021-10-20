@@ -27,11 +27,21 @@ namespace CCC.CAS.Workflow4Api.Services
             _config = config.Value;
         }
 
-        public async Task StartWorkflow(int scenario, string clientCode)
+        public async Task RestartWorkflow(string taskToken)
         {
             using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
+            var result = await sfClient.SendTaskSuccessAsync(new Amazon.StepFunctions.Model.SendTaskSuccessRequest
+            {
+                TaskToken = taskToken,
+                Output = "{\"i\":1}"
+            }).ConfigureAwait(false);
+        }
+
+        public async Task StartWorkflow(int scenario, string clientCode)
+        {
             if (scenario >= 0 && scenario < _arns.Length)
             {
+                using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
                 var result = await sfClient.StartExecutionAsync(new Amazon.StepFunctions.Model.StartExecutionRequest()
                 {
                     StateMachineArn = _arns[scenario],

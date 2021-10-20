@@ -12,6 +12,11 @@ using System.Threading.Tasks;
 
 namespace CCC.CAS.Workflow4Api.Controllers
 {
+    public class blah
+    {
+        public string TaskToken { get; set; } = "";
+    }
+
 #pragma warning disable CA1812
     [ApiController]
     public class Workflow : Controller
@@ -25,10 +30,8 @@ namespace CCC.CAS.Workflow4Api.Controllers
             _logger = logger;
         }
 
-        // POST: Workflow/Create
         [HttpPost]
         [Route("/api/workflow")]
-        //[ValidateAntiForgeryToken]
         [SwaggerOperation("StartWorkflow")]
         [SwaggerResponse(statusCode: 201, type: typeof(string), description: "Demo")]
         public async Task<ActionResult> Create(WorkDemoActivityState state)
@@ -37,6 +40,23 @@ namespace CCC.CAS.Workflow4Api.Controllers
             try
             {
                 await _workflowService.StartWorkflow(state.ScenarioNumber, state.ClientCode).ConfigureAwait(false);
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Controller caught error");
+                return StatusCode((int)HttpStatusCode.InternalServerError);
+            }
+        }
+        [HttpPost]
+        [Route("/api/workflow/restart")]
+        [SwaggerOperation("StartWorkflow")]
+        [SwaggerResponse(statusCode: 201, type: typeof(string), description: "Demo")]
+        public async Task<ActionResult> Restart([FromBody]blah b)
+        {
+            try
+            {
+                await _workflowService.RestartWorkflow(b?.TaskToken ?? "").ConfigureAwait(false);
                 return Ok();
             }
             catch (Exception e)
