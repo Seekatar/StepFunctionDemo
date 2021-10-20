@@ -1,0 +1,96 @@
+# default values for the cas-service chart
+# commented out sections show the most common override values
+# DO NOT put secrets here since this goes into the repo, see the
+# README about using shared_appsettings.json
+cas-service:
+
+  # deployFlow for Flow in K8s, use false for local
+  deployFlow: true
+
+  # full name
+  serviceName: cas-workflow4-api
+
+  # Docker Image and tag
+  image:
+    name: ccc-cas-workflow4-api
+    tag: "$env:IMAGE_TAG"
+    repository: "rulesenginecontainerregistry.azurecr.io"
+    pullPolicy: IfNotPresent
+
+  # configMap has values to put into the environment
+  configMap:
+    ActiveMq__Host: "cas-activemq"
+    ActiveMq__Username: "service"
+    ASPNETCORE_URLS: "http://+:8080"
+
+  # don't put secrets here, 'secrets' in deploy.yml
+
+  # volumes has hostpath and cifs mounts
+  # volumes:
+  #   - hostPath: /ais-stage01/Share03/Images/
+  #   - vol: //172.31.2.125/Share01/Images/
+  #     path: /ais-stage01/Share01/Images/
+  #     secret: nas-reliance-cifs-secret
+  #     dmode: "0444"
+  #     fmode: "0444"
+  #     ver: "1.0"
+
+  # healthChecks for liveness and ready
+  # healthChecks:
+  #   port: 8080
+  #   liveness:
+  #     url: /health/live
+  #     initialDelaySeconds: 10
+  #     timeoutSeconds: 15
+  #     periodSeconds: 15
+
+  #   ready:
+  #     url: /health/ready
+  #     initialDelaySeconds: 45
+  #     timeoutSeconds: 120
+  #     periodSeconds: 120
+
+  # sevice configuration
+  # service:
+    # type: ClusterIP
+    # port: 80
+    # targetPort: 8080
+    # nodePort: 32000
+  ingressInternal:
+    name: cas-workflow4-internal
+    enabled: $env:ENABLE_INGRESS_INTERNAL
+    # tls: []
+    annotations:
+      kubernetes.io/ingress.class: internal
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "360"
+      nginx.ingress.kubernetes.io/proxy-next-upstream-timeout: "360"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "360"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "360"
+      nginx.ingress.kubernetes.io/client-body-buffer-size: 128k
+      nginx.ingress.kubernetes.io/proxy-body-size: 10m
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 32k
+    hosts:
+    - host: "$env:INGRESS_HOST_INTERNAL"
+      paths:
+      - path: /workflow4-api
+
+  ingressExternal:
+    name: cas-workflow4-external
+    enabled: $env:ENABLE_INGRESS_EXTERNAL
+    # tls: []
+    annotations:
+      kubernetes.io/ingress.class: external
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "360"
+      nginx.ingress.kubernetes.io/proxy-next-upstream-timeout: "360"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "360"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "360"
+      nginx.ingress.kubernetes.io/client-body-buffer-size: 128k
+      nginx.ingress.kubernetes.io/proxy-body-size: 10m
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 32k
+    hosts:
+    - host: "$env:INGRESS_HOST_EXTERNAL"
+      paths:
+      - path: /workflow4-api
+

@@ -1,0 +1,75 @@
+parameters:
+  - name: dryRun
+    type: boolean
+    displayName: Dry run Helm
+    default: false
+  - name: versionOverride
+    type: string
+    displayName: Override version number
+    default: ' '
+  - name: environments
+    displayName: Environments (main will stop at QA)
+    type: object
+    default:
+      - Dev
+      - Pfx
+      - QA
+      - CT
+      - Prod
+
+name: "$(MYNAME)-$(Rev:r)"
+
+trigger: none
+
+# --------------
+variables:
+- name: MYNAME
+  ${{ if parameters.dryRun}}:
+    value: 'DRY RUN'
+  ${{ if not(parameters.dryRun) }}:
+    value: 'Deploy'
+- name: appName
+  value: cas-workflow4
+- name: appPrefix
+  value: Reliance
+
+- name: secrets
+  value: |-
+    cas-service:
+      secrets:
+        ACTIVEMQ__PASSWORD: $(ACTIVEMQ__PASSWORD)
+
+# --------------
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Reliance/DevOps-Templates
+      ref: refs/heads/release/v4.3
+  pipelines:
+  - pipeline: CAS-Workflow4-Api-Build
+    source: CAS-Workflow4-Api-Build
+    trigger:
+      branches:
+        include:
+        - main
+        - release/*
+
+# --------------
+stages:
+# deployment stages
+- ${{ each e in parameters.environments }}:
+  - template: templates/default-deploy-stage.yml@templates
+    parameters:
+      dryRun: ${{ parameters.dryRun }}
+      versionOverride: ${{ parameters.versionOverride }}
+      environment: ${{ e }}
+      buildPipelineId: $(resources.pipeline.CAS-Workflow4-Api-Build.pipelineID)
+      appPrefix: ${{ variables.appPrefix }}
+      releaseName: ${{ variables.appName }}
+      activeMq: true
+      variableGroups:
+      - RELIANCE-${{ upper(e) }}-COMMON
+      # - WORKFLOW4-API-${{ upper(e) }}
+      - ACTIVEMQ_NONPROD
+      - OKTA-RELIANCE-${{ upper(e) }}

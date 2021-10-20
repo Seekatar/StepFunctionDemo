@@ -1,0 +1,36 @@
+name: "0.1.$(Rev:r)"
+
+trigger:
+  branches:
+    include:
+    - 'main'
+    - release/*
+  paths:
+    exclude:
+    - '*.md'
+    - '*.ps1'
+    - build/deploy.yml
+    - build/templates
+    - build/helm
+    - src/CCC.CAS.Workflow4Messages
+
+# --------------
+variables:
+  - name: imageName
+    value: ccc-cas-workflow4-api
+
+# --------------
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Reliance/DevOps-Templates
+      ref:  refs/heads/release/v4.3
+
+# --------------
+stages:
+- template: /templates/build-stage.yml@templates
+  parameters:
+    imageName: $(imageName)
+    unitTest: false
+    runPs1: run.ps1

@@ -1,0 +1,139 @@
+openapi: 3.0.0
+info:
+  title: Workflow4 API
+  description: API Supporting the Workflow4 App
+  contact:
+    email: myemail@aisreview.com
+  license:
+    name: Apache 2.0
+    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+  version: 1.0.0-oas3
+servers:
+  - url: "http://localhost:58377"
+    description: Localhost
+tags:
+  - name: Echo
+    description: SQL Proxy Echo
+  - name: Workflow4
+    description: Call to the Workflow4Service via AMQ
+paths:
+  /api/echo/{name}:
+    get:
+      tags:
+        - Echo
+      summary: Echo a string
+      operationId: echo
+      parameters:
+        - name: name
+          description: name to echo back
+          required: true
+          in: path
+          style: simple
+          explode: false
+          schema:
+            type: string
+          example: Fred
+      responses:
+        "200":
+          description: Echoed message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EchoResponse"
+        "400":
+          description: bad input parameter
+  /api/workflow4s:
+    post:
+      tags:
+        - Workflow4
+      summary: Saves workflow4
+      description: |
+        Save a Workflow4
+      operationId: saveWorkflow4
+      requestBody:
+        description: Workflow4
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Workflow4"
+        required: true
+      responses:
+        "201":
+          description: Workflow4
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workflow4SavedResponse"
+        "400":
+          description: Invalid Workflow4.
+        "500":
+          description: Internal error.
+  /api/workflow4s/{id}:
+    get:
+      tags:
+        - Workflow4
+      summary: Gets a Workflow4
+      description: |
+        Get a workflow4 by id
+      operationId: getWorkflow4
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: A workflow4
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workflow4"
+        "400":
+          description: bad input parameter
+        "404":
+          description: Workflow4 not found
+components:
+  schemas:
+    EchoResponse:
+      description: Response Echo call
+      type: object
+      properties:
+        parm:
+          type: object
+          required:
+            - client
+            - name
+          properties:
+            name:
+              type: string
+              example: Fred
+            client:
+              type: string
+              description: Connection name
+              example: CONNA
+    Workflow4:
+      description: Workflow4 object
+      type: object
+      required:
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique id
+        name:
+          type: string
+          example: Workflow4Name
+        description:
+          type: string
+          example: Workflow4Name
+    Workflow4SavedResponse:
+      allOf:
+        - $ref: "#/components/schemas/Workflow4"
+  parameters:
+    id:
+      name: id
+      description: id of object
+      in: path
+      required: true
+      style: simple
+      explode: false
+      schema:
+        type: string
