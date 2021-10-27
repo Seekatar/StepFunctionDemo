@@ -1,0 +1,48 @@
+{
+  "Comment": "A Hello World example demonstrating various state types of the Amazon States Language",
+  "StartAt": "Dre",
+  "States": {
+    "Dre": {
+      "Comment": "A Pass state passes its input to its output, without performing work. Pass states are useful when constructing and debugging state machines.",
+      "Type": "Pass",
+      "Next": "3M",
+      "ResultPath": null
+    },
+    "3M": {
+      "Comment": "A Pass state passes its input to its output, without performing work. Pass states are useful when constructing and debugging state machines.",
+      "Type": "Pass",
+      "Next": "Evaluator",
+      "ResultPath": null
+    },
+    "Evaluator": {
+      "Comment": "A Pass state passes its input to its output, without performing work. Pass states are useful when constructing and debugging state machines.",
+      "Type": "Pass",
+      "Next": "Ppo",
+      "ResultPath": null
+    },
+    "Ppo": {
+      "Comment": "Start an execution of another Step Functions state machine and wait",
+      "Type": "Task",
+      "Resource": "arn:aws:states:::states:startExecution.waitForTaskToken",
+      "Parameters": {
+        "StateMachineArn": "arn:aws:states:us-east-1:620135122039:stateMachine:Cas-Rbr-Ppo",
+        "Input": {
+          "Ppo1.$": "$.Ppo1",
+          "Ppo2.$": "$.Ppo2",
+          "Ppon.$": "$.Ppon",
+          "NeedCallback": true,
+          "AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$": "$$.Execution.Id",
+          "TaskToken.$": "$$.Task.Token"
+        }
+      },
+      "Next": "Bundler",
+      "ResultPath": null
+    },
+    "Bundler": {
+      "Comment": "A Pass state passes its input to its output, without performing work. Pass states are useful when constructing and debugging state machines.",
+      "Type": "Pass",
+      "End": true,
+      "ResultPath": null
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "Comment": "Casualty document processing",
+  "StartAt": "IsImage",
+  "States": {
+    "IsImage": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.docType",
+          "StringEquals": "\"image\"",
+          "Next": "ImageProcessing"
+        }
+      ],
+      "Default": "BillDataAccepted"
+    },
+    "ImageProcessing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "ValidImage"
+    },
+    "ValidImage": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.valid",
+          "BooleanEquals": false,
+          "Next": "InvalidImage"
+        }
+      ],
+      "Default": "DataIngest"
+    },
+    "BillDataAccepted": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "DataIngest"
+    },
+    "DataIngest": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "RecommendationProcessing"
+    },
+    "RecommendationProcessing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "PaymentAllocation"
+    },
+    "PaymentAllocation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "STP"
+    },
+    "STP": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.stp",
+          "BooleanEquals": true,
+          "Next": "HumanReview"
+        }
+      ],
+      "Default": "Approved"
+    },
+    "Approved": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "PostProcessing"
+    },
+    "PostProcessing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "Archived"
+    },
+    "Archived": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "End": true
+    },
+    "HumanReview": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "Next": "ReviewOutput"
+    },
+    "ReviewOutput": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.result",
+          "StringEquals": "\"1\"",
+          "Next": "Approved"
+        },
+        {
+          "Variable": "$.result",
+          "StringEquals": "2",
+          "Next": "RecommendationProcessing"
+        }
+      ]
+    },
+    "InvalidImage": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::activity:ACTIVITY_NAME",
+      "End": true
+    }
+  }
+}

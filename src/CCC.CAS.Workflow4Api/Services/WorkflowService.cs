@@ -17,7 +17,8 @@ namespace CCC.CAS.Workflow4Api.Services
     {
         private readonly ILogger<WorkflowService> _logger;
         private readonly AwsWorkflowConfiguration _config;
-        string[] _arns = { "arn:aws:states:us-east-1:620135122039:stateMachine:test-jmw", "arn:aws:states:us-east-1:620135122039:stateMachine:MyStateMachine" };
+        string[] _stateMachineArns = { "arn:aws:states:us-east-1:620135122039:stateMachine:Cas-Rbr-Test-ErrorHandling",
+                                       "arn:aws:states:us-east-1:620135122039:stateMachine:Cas-Rbr-Recommendations" };
 
 
         public WorkflowService(IOptions<AwsWorkflowConfiguration> config, ILogger<WorkflowService> logger)
@@ -37,22 +38,25 @@ namespace CCC.CAS.Workflow4Api.Services
             }).ConfigureAwait(false);
         }
 
-        public async Task StartWorkflow(int scenario, string clientCode)
+        public async Task StartDemoWorkflow(WorkDemoActivityState state)
         {
-            if (scenario >= 0 && scenario < _arns.Length)
+            await StartWorkflow(_stateMachineArns[0], state).ConfigureAwait(false);
+        }
+
+        public async Task StartDocWorkflow(WorkDemoActivityState state)
+        {
+            await StartWorkflow(_stateMachineArns[1], state).ConfigureAwait(false);
+        }
+
+        async Task StartWorkflow(string arn, WorkDemoActivityState state)
+        { 
+            using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
+            var result = await sfClient.StartExecutionAsync(new Amazon.StepFunctions.Model.StartExecutionRequest()
             {
-                using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
-                var result = await sfClient.StartExecutionAsync(new Amazon.StepFunctions.Model.StartExecutionRequest()
-                {
-                    StateMachineArn = _arns[scenario],
-                    Input = JsonSerializer.Serialize(new WorkDemoActivityState() { ClientCode = clientCode, ScenarioNumber = scenario }),
-                    Name = Guid.NewGuid().ToString()
-                }).ConfigureAwait(false);
-            }
-            else
-            {
-                _logger.LogError("Bad scenario value of {scenario}", scenario);
-            }
+                StateMachineArn = arn,
+                Input = JsonSerializer.Serialize(state),
+                Name = Guid.NewGuid().ToString()
+            }).ConfigureAwait(false);
 
             return;
 

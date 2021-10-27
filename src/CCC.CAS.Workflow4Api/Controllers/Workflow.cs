@@ -31,15 +31,34 @@ namespace CCC.CAS.Workflow4Api.Controllers
         }
 
         [HttpPost]
-        [Route("/api/workflow")]
-        [SwaggerOperation("StartWorkflow")]
+        [Route("/api/workflow/demo")]
+        [SwaggerOperation("StartDemoWorkflow")]
         [SwaggerResponse(statusCode: 201, type: typeof(string), description: "Demo")]
-        public async Task<ActionResult> Create(WorkDemoActivityState state)
+        public async Task<ActionResult> StartDemoWorkflow(WorkDemoActivityState state)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
             try
             {
-                await _workflowService.StartWorkflow(state.ScenarioNumber, state.ClientCode).ConfigureAwait(false);
+                await _workflowService.StartDemoWorkflow(state).ConfigureAwait(false);
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Controller caught error");
+                return StatusCode((int)HttpStatusCode.InternalServerError);
+            }
+        }
+
+        [HttpPost]
+        [Route("/api/workflow/doc")]
+        [SwaggerOperation("StartDocWorkflow")]
+        [SwaggerResponse(statusCode: 201, type: typeof(string), description: "Demo")]
+        public async Task<ActionResult> StartDocWorkflow(WorkDemoActivityState state)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+            try
+            {
+                await _workflowService.StartDocWorkflow(state).ConfigureAwait(false);
                 return Ok();
             }
             catch (Exception e)

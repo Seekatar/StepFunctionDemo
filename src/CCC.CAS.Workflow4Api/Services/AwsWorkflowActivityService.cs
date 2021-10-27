@@ -19,7 +19,25 @@ namespace CCC.CAS.Workflow2Service.Services
     {
         private ILogger<AwsWorkflowActivityService> _logger;
         private readonly AwsWorkflowConfiguration _config;
-        string[] ARNs = { "arn:aws:states:us-east-1:620135122039:activity:DemoActivity1", "arn:aws:states:us-east-1:620135122039:stateMachine:MyStateMachine" };
+        string[] _myActivities = {  "Cas-Rbr-DemoActivity1",
+                                    "Cas-Rbr-DemoActivity2",
+                                    "Cas-Rbr-DemoActivity3",
+                                    "Cas-Rbr-DemoActivity4",
+                                    "Cas-Rbr-Ppo1",
+                                    "Cas-Rbr-Ppo2",
+                                    "Cas-Rbr-Ppon",
+                                    "Cas-Rbr-DocMain",
+        };
+        string[] _myActivitieArns = {
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DemoActivity1",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DemoActivity2",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DemoActivity3",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DemoActivity4",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppo1",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppo2",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppon",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DocMain",
+        };
 
         public AwsWorkflowActivityService(IOptions<AwsWorkflowConfiguration> config, ILogger<AwsWorkflowActivityService> logger)
         {
@@ -30,62 +48,116 @@ namespace CCC.CAS.Workflow2Service.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            // This reads from C:\Users\<me>\.aws\credentials for the secret and 
+            // the region is from environment (LaunchSettings.json)
+            // using var sfClient = new AmazonStepFunctionsClient(); // RegionEndpoint.GetBySystemName(_config.Region)); //  _config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
             using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
 
             await RegisterAsNeeded(sfClient).ConfigureAwait(false);
 
             var tasks = new List<Task>();
 
-            foreach (var a in ARNs)
+            foreach (var arn in _myActivitieArns)
             {
-                tasks.Add(Task.Run(async () => { await doit(a, sfClient, stoppingToken).ConfigureAwait(false); }, stoppingToken));
+                tasks.Add(PollForActivity(arn, sfClient, stoppingToken));
             }
 
             Task.WaitAll(tasks.ToArray(), stoppingToken);
         }
 
-        private async Task doit(string arn, AmazonStepFunctionsClient sfClient, CancellationToken stoppingToken)
+        private async Task PollForActivity(string arn, AmazonStepFunctionsClient sfClient, CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-
-                _logger.LogDebug($"{nameof(AwsWorkflowActivityService)} polling for {arn}");
+                bool errorOut = true;
+                var taskName = arn.Split(':').Last();
+                _logger.LogDebug(">>> {task} polling", taskName);
                 var activityTask = await Poll(sfClient, arn).ConfigureAwait(false);
 
                 if (string.IsNullOrEmpty(activityTask?.TaskToken))
                     continue;
 
-                var workDemoActivityState = JsonSerializer
-                    .Deserialize<WorkDemoActivityState>(activityTask.Input);
-
-                _logger.LogInformation("Task is {task}", activityTask.TaskToken);
-
-                if (workDemoActivityState != null)
+                WorkDemoActivityState? workDemoActivityState = null;
+                try
                 {
-                    workDemoActivityState = ProcessTask(arn, workDemoActivityState);
-                    if (workDemoActivityState.ScenarioNumber == 1)
+                    workDemoActivityState = JsonSerializer
+                        .Deserialize<WorkDemoActivityState>(activityTask.Input);
+
+                    _logger.LogInformation(">>> {task} fired with state {scenario}", taskName, workDemoActivityState?.ScenarioNumber ?? -1);
+
+                    if (workDemoActivityState != null)
                     {
-                        var _ = Task.Run(async () =>
+                        workDemoActivityState = ProcessTask(arn, workDemoActivityState);
+                        if (taskName == "Cas-Rbr-DemoActivity1")
                         {
-                            _logger.LogInformation("Waiting....");
-                            await Task.Delay(30000).ConfigureAwait(false);
-                            await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false);
-                        }, stoppingToken);
+                            if (workDemoActivityState.ClientCode.Equals("USAA", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger.LogInformation(">>> {task} Completing....", taskName);
+                                await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
+                                errorOut = false;
+                            }
+                            else if (workDemoActivityState.ClientCode.Equals("GEICO", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger.LogInformation(">>> {task} Not completing....", taskName);
+                                _logger.LogInformation(">>> {taskToken}", activityTask.TaskToken);
+                                errorOut = false;
+                            }
+                            else
+                            {
+                                _logger.LogInformation(">>> {task} Failing....", taskName);
+                                await FailTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
+                                errorOut = false;
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogInformation(">>> {task} Completing....", taskName);
+                            await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
+                            errorOut = false;
+                        }
                     }
                     else
                     {
-                        await CompleteTask (sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
+                        _logger.LogError("Didn't get state for {task} with token {taskToken}", taskName, activityTask.TaskToken);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error processing task {task}", taskName);
+                    if (errorOut)
+                    {
+                        await FailTask(sfClient, activityTask.TaskToken, workDemoActivityState ?? new WorkDemoActivityState()).ConfigureAwait(false); ;
                     }
                 }
                 Thread.Sleep(100);
             }
         }
 
+        private async Task FailTask(AmazonStepFunctionsClient sfClient, string taskToken, WorkDemoActivityState workDemoActivityState)
+        {
+            var respondActivityTaskCompletedRequest =
+                new SendTaskFailureRequest()
+                {
+                    Cause = "Because",
+                    Error = "Ouch!",
+                    TaskToken = taskToken
+                };
+
+            try
+            {
+                await sfClient.SendTaskFailureAsync(respondActivityTaskCompletedRequest).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"{workDemoActivityState} task complete failed: {ex}");
+            }
+        }
+
         private async Task RegisterAsNeeded(AmazonStepFunctionsClient sfClient)
         {
-            string[] myActivities = { "DemoActivity1", "DemoActivity2", "DemoActivity3", "DemoActivity4" };
             var activities = await sfClient.ListActivitiesAsync(new ListActivitiesRequest() { }).ConfigureAwait(false);
-            foreach (var a in myActivities)
+
+            foreach (var a in _myActivities)
             {
                 if (!activities.Activities.Any(o => o.Name == a))
                 {
@@ -98,8 +170,11 @@ namespace CCC.CAS.Workflow2Service.Services
 
         private static WorkDemoActivityState ProcessTask(string activityTypeName, WorkDemoActivityState workDemoActivityState)
         {
+            if (!int.TryParse(activityTypeName.Last().ToString(), out var id))
+                id = -1;
+
             WorkDemo.WasteTime(
-                int.Parse(activityTypeName.Last().ToString(), CultureInfo.InvariantCulture),
+                id,
                 workDemoActivityState);
 
             return workDemoActivityState;

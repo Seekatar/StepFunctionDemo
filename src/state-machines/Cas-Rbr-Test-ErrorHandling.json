@@ -1,0 +1,59 @@
+{
+  "Comment": "An example using a Task state.",
+  "StartAt": "Activity1",
+  "Version": "1.0",
+  "TimeoutSeconds": 300,
+  "States": {
+    "Activity1": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DemoActivity1",
+      "Next": "Activity2",
+      "TimeoutSeconds": 60,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "Comment": "CatcherTimeout",
+          "Next": "PassTimeout",
+          "ResultPath": "$.errorInfo"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Comment": "CatcherError",
+          "Next": "PassError",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "ResultPath": "$.original"
+    },
+    "Activity2": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DemoActivity2",
+      "Next": "Activity3"
+    },
+    "Activity3": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DemoActivity3",
+      "End": true
+    },
+    "PassError": {
+      "Type": "Pass",
+      "End": true,
+      "ResultPath": "$.extra",
+      "Result": {
+        "error": "ERROR!"
+      }
+    },
+    "PassTimeout": {
+      "Type": "Pass",
+      "End": true,
+      "ResultPath": "$.extra",
+      "Result": {
+        "error": "timedout!"
+      }
+    }
+  }
+}

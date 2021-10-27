@@ -1,0 +1,61 @@
+{
+  "Comment": "PPO sample",
+  "StartAt": "RunPpo1?",
+  "States": {
+    "RunPpo1?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Ppo1",
+          "BooleanEquals": false,
+          "Next": "RunPpo2?"
+        }
+      ],
+      "Default": "Ppo1"
+    },
+    "Ppo1": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppo1",
+      "Next": "RunPpo2?",
+      "ResultPath": null
+    },
+    "RunPpo2?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Ppo2",
+          "BooleanEquals": false,
+          "Next": "RunPpon?"
+        }
+      ],
+      "Default": "Ppo2"
+    },
+    "Ppo2": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppo2",
+      "Next": "RunPpon?",
+      "ResultPath": null
+    },
+    "RunPpon?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Ppon",
+          "BooleanEquals": false,
+          "Next": "Exit"
+        }
+      ],
+      "Default": "Ppon"
+    },
+    "Ppon": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppon",
+      "Next": "Exit",
+      "ResultPath": null
+    },
+    "Exit": {
+      "Type": "Pass",
+      "End": true
+    }
+  }
+}
