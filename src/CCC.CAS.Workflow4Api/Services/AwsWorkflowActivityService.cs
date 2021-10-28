@@ -15,6 +15,38 @@ using System.Collections.Generic;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
+    class WorkflowError
+    {
+        public enum ReasonCode
+        {
+            Error,
+            Timeout
+        }
+
+        public ReasonCode Reason { get; set; }
+        public List<string> Messages { get; } = new List<string>();
+    }
+
+    class SubWorkflowExit
+    {
+        public string TaskToken { get; set; } = "";
+        public WorkflowError? Error { get; set; }
+    }
+
+    abstract class AwsActivity<TInput,TOutput> 
+    {
+        public string Name { get; set; } = "";
+        public abstract Task Start(TInput input);
+        public Task Complete(TOutput output)
+        {
+            throw new NotImplementedException();
+        }
+        public Task Fail(WorkflowError error)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public class AwsWorkflowActivityService : BackgroundService
     {
         private ILogger<AwsWorkflowActivityService> _logger;
@@ -26,6 +58,7 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "Cas-Rbr-Ppo1",
                                     "Cas-Rbr-Ppo2",
                                     "Cas-Rbr-Ppon",
+                                    "Cas-Rbr-Ppo-Exit",
                                     "Cas-Rbr-DocMain",
         };
         string[] _myActivitieArns = {
@@ -36,6 +69,7 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppo1",
                                     "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppo2",
                                     "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppon",
+                                    "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-Ppo-Exit",
                                     "arn:aws:states:us-east-1:620135122039:activity:Cas-Rbr-DocMain",
         };
 
@@ -114,6 +148,14 @@ namespace CCC.CAS.Workflow2Service.Services
                             _logger.LogInformation(">>> {task} Completing....", taskName);
                             await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
                             errorOut = false;
+                        }
+                        if (!errorOut && taskName == "Cas-Rbr-Ppo-Exit")
+                        {
+                            if (!string.IsNullOrEmpty(workDemoActivityState.TaskToken))
+                            {
+                                _logger.LogInformation(">>> {task} Completing parent task from....", taskName);
+                                await CompleteTask(sfClient, workDemoActivityState.TaskToken, workDemoActivityState).ConfigureAwait(false);
+                            }
                         }
                     }
                     else
