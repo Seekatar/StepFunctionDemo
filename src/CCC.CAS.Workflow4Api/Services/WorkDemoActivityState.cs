@@ -5,11 +5,14 @@ namespace CCC.CAS.Workflow2Service.Services
 {
     public class WorkDemoActivityState
     {
-        /// <example>2021-01-02T12:00</example>
-        public DateTime EventTimestamp { get; set; } = DateTime.Now;
+        /// <example>USAA</example>
+        public string CorrelationId { get; set; } = "";
+        public string RequestId { get; set; } = "";
 
         /// <example>USAA</example>
         public string ClientCode { get; set; } = "";
+        /// <example>1</example>
+        public int ProfileId { get; set; }
 
         /// <example>AAAAK...iNi2</example>
         public string? TaskToken { get; set; }

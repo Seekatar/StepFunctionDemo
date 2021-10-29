@@ -36,6 +36,24 @@
         }
       },
       "Next": "Bundler",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "Comment": "CatcherTimeout",
+          "Next": "Timeout",
+          "ResultPath": "$.errorInfo"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Comment": "CatcherError",
+          "Next": "Error",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
       "ResultPath": null
     },
     "Bundler": {
@@ -43,6 +61,21 @@
       "Type": "Pass",
       "End": true,
       "ResultPath": null
-    }
-  }
+    },
+    "Error": {
+      "Type": "Pass",
+      "End": true,
+      "ResultPath": "$.extra",
+      "Result": {
+        "error": "ERROR!"
+      }
+    },
+    "Timeout": {
+      "Type": "Pass",
+      "End": true,
+      "ResultPath": "$.extra",
+      "Result": {
+        "error": "timedout!"
+      }
+    }  }
 }
