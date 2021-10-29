@@ -12,110 +12,11 @@ using System.Threading.Tasks;
 using Amazon.StepFunctions;
 using Amazon.StepFunctions.Model;
 using System.Collections.Generic;
+using CCC.CAS.API.Common.Installers;
+using CCC.CAS.Workflow4Api.Services;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
-    public class WorkflowError
-    {
-        public enum ReasonCode
-        {
-            Error,
-            Timeout
-        }
-
-        public ReasonCode Reason { get; set; }
-        public List<string> Messages { get; } = new List<string>();
-    }
-
-    public class ActivityInputBase
-    {
-        public string CorrelationId { get; set; } = "";
-        public string? RequestId { get; set; }
-        public string? ClientCode { get; set; } = "";
-        public int ProfileId { get; set; }
-        public DateTimeOffset WorkflowStart { get; set; }
-        public DateTimeOffset StateStart { get; set; }
-    }
-    public class ChildWorkflow : ActivityInputBase
-    {
-        public string TaskToken { get; set; } = "";
-    }
-
-    public class SubWorkflowExit
-    {
-        public string TaskToken { get; set; } = "";
-        public WorkflowError? Error { get; set; }
-    }
-
-    abstract class AwsActivity<TInput, TOutput>
-    {
-        private readonly AmazonStepFunctionsClient _sfClient;
-        private readonly string _taskToken;
-        private readonly ILogger _logger;
-
-        protected AwsActivity(AmazonStepFunctionsClient sfClient, string taskToken, ILogger logger)
-        {
-            _sfClient = sfClient;
-            _taskToken = taskToken;
-            _logger = logger;
-        }
-
-        public string Name { get; set; } = "";
-        public abstract Task Start(TInput input);
-        public Task Complete(TOutput output)
-        {
-            return CompleteTask(_sfClient, _taskToken, output);
-        }
-        public Task Fail(WorkflowError error)
-        {
-            throw new NotImplementedException();
-        }
-        private async Task CompleteTask(
-            AmazonStepFunctionsClient amazonSimpleWorkflowClient,
-            string taskToken, object? workDemoActivityState)
-        {
-
-            var respondActivityTaskCompletedRequest =
-                new SendTaskSuccessRequest()
-                {
-                    Output = JsonSerializer.Serialize(workDemoActivityState),
-                    TaskToken = taskToken
-                };
-
-            try
-            {
-                await amazonSimpleWorkflowClient.SendTaskSuccessAsync(respondActivityTaskCompletedRequest).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"{workDemoActivityState} task complete failed: {ex}");
-            }
-        }
-    }
-
-    class PpoOutput
-    {
-
-    }
-
-    class Ppo1 : AwsActivity<ActivityInputBase, PpoOutput>
-    {
-        public Ppo1(AmazonStepFunctionsClient sfClient, string taskToken, ILogger logger) : base(sfClient, taskToken, logger)
-        {
-
-        }
-
-        public override Task Start(ActivityInputBase input)
-        {
-            return Task.Run(async () =>
-            {
-                await Task.Delay(1000).ConfigureAwait(false);
-                System.Console.WriteLine("Ppo1 completed!");
-                var _ = Complete(new PpoOutput());
-            });
-        }
-    }
-
     public class AwsWorkflowActivityService : BackgroundService
     {
         private ILogger<AwsWorkflowActivityService> _logger;
@@ -125,7 +26,7 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "Cas-Rbr-DemoActivity2",
                                     "Cas-Rbr-DemoActivity3",
                                     "Cas-Rbr-DemoActivity4",
-                                    "Cas-Rbr-Ppo1",
+                                    //"Cas-Rbr-Ppo1",
                                     "Cas-Rbr-Ppo2",
                                     "Cas-Rbr-Ppon",
                                     "Cas-Rbr-Ppo-Exit",
@@ -282,8 +183,49 @@ namespace CCC.CAS.Workflow2Service.Services
                 }
             }
 
+            var t = typeof(AwsActivity<object,object>);
+
+            var assys = InstallerExtension.GetAssemblies("CCC*.dll");
+            var acts  = assys.SelectMany(s => s.GetTypes())
+                                .Where(x => x.Name == "Ppo1");
+            var ppo1 = acts.FirstOrDefault();
+            var act2s = assys.SelectMany(s => s.GetTypes())
+                                .Where(x => typeof(AwsActivity<,>).IsAssignableFrom(x));
+
+            var actrs2 = GetTypesInLoadedAssemblies(typeof(AwsActivity<,>));
+            var rt = typeof(List<>);
+            var xx = typeof(Dictionary<,>);
+            var xsx = typeof(AwsActivity<,>);
+
+
+            var b = IsSubclassOfRawGeneric(xsx, ppo1);
+            return;
+
+        }
+        static bool IsSubclassOfRawGeneric(Type generic, Type? toCheck)
+        {
+            while (toCheck != null && toCheck != typeof(object))
+            {
+                var cur = toCheck.IsGenericType ? toCheck.GetGenericTypeDefinition() : toCheck;
+                if (generic == cur)
+                {
+                    return true;
+                }
+                toCheck = toCheck.BaseType;
+            }
+            return false;
         }
 
+        public static List<Type> GetTypesInLoadedAssemblies(Type type, string assemblyPrefix = "CCC.")
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                                .Where(o => o.GetName().Name?.StartsWith(assemblyPrefix, StringComparison.OrdinalIgnoreCase) ?? false)
+                                .SelectMany(s => s.GetTypes())
+                                .Where(x => type.IsAssignableFrom(x) && !x.IsInterface && !x.IsAbstract)
+                                .ToList();
+
+
+        }
         private static WorkDemoActivityState ProcessTask(string activityTypeName, WorkDemoActivityState workDemoActivityState)
         {
             if (!int.TryParse(activityTypeName.Last().ToString(), out var id))

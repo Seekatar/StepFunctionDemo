@@ -24,7 +24,7 @@
   <ItemGroup>
     <PackageReference Include="AWSSDK.StepFunctions" Version="3.3.104.87" />
     <PackageReference Include="CCC.CAS.API.AspNetCommon" Version="1.1.5" />
-    <PackageReference Include="CCC.CAS.API.AspNetCommon" Version="1.1.19" />
+    <PackageReference Include="CCC.CAS.API.AspNetCommon" Version="5.0.5" />
     <PackageReference Include="Microsoft.CodeQuality.Analyzers" Version="3.3.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
