@@ -183,49 +183,46 @@ namespace CCC.CAS.Workflow2Service.Services
                 }
             }
 
-            var t = typeof(AwsActivity<object,object>);
+            var activityType = typeof(AwsActivity<,>);
 
-            var assys = InstallerExtension.GetAssemblies("CCC*.dll");
-            var acts  = assys.SelectMany(s => s.GetTypes())
-                                .Where(x => x.Name == "Ppo1");
-            var ppo1 = acts.FirstOrDefault();
-            var act2s = assys.SelectMany(s => s.GetTypes())
-                                .Where(x => typeof(AwsActivity<,>).IsAssignableFrom(x));
+            var activityTypes = GetTypesInLoadedAssemblies(type => IsSubclassOfRawGeneric(activityType, type));
+            var ctors = activityType.GetConstructors();
+            var ctor = ctors.FirstOrDefault();
+            ctor.Invoke();
 
-            var actrs2 = GetTypesInLoadedAssemblies(typeof(AwsActivity<,>));
-            var rt = typeof(List<>);
-            var xx = typeof(Dictionary<,>);
-            var xsx = typeof(AwsActivity<,>);
-
-
-            var b = IsSubclassOfRawGeneric(xsx, ppo1);
             return;
 
         }
-        static bool IsSubclassOfRawGeneric(Type generic, Type? toCheck)
-        {
-            while (toCheck != null && toCheck != typeof(object))
-            {
-                var cur = toCheck.IsGenericType ? toCheck.GetGenericTypeDefinition() : toCheck;
-                if (generic == cur)
-                {
-                    return true;
-                }
-                toCheck = toCheck.BaseType;
-            }
-            return false;
-        }
 
-        public static List<Type> GetTypesInLoadedAssemblies(Type type, string assemblyPrefix = "CCC.")
+        public static List<Type> GetTypesInLoadedAssemblies(Predicate<Type> predicate, string assemblyPrefix = "CCC.")
         {
             return AppDomain.CurrentDomain.GetAssemblies()
                                 .Where(o => o.GetName().Name?.StartsWith(assemblyPrefix, StringComparison.OrdinalIgnoreCase) ?? false)
                                 .SelectMany(s => s.GetTypes())
-                                .Where(x => type.IsAssignableFrom(x) && !x.IsInterface && !x.IsAbstract)
+                                .Where(x => predicate(x))
                                 .ToList();
-
-
         }
+
+
+        // modified from this link to add if check to only do concrete classes and not itself
+        // https://stackoverflow.com/questions/457676/check-if-a-class-is-derived-from-a-generic-class
+        static bool IsSubclassOfRawGeneric(Type generic, Type? toCheck)
+        {
+            if (toCheck != null && generic != toCheck && !toCheck.IsInterface && !toCheck.IsAbstract)
+            {
+                while (toCheck != null && toCheck != typeof(object))
+                {
+                    var cur = toCheck.IsGenericType ? toCheck.GetGenericTypeDefinition() : toCheck;
+                    if (generic == cur)
+                    {
+                        return true;
+                    }
+                    toCheck = toCheck.BaseType;
+                }
+            }
+            return false;
+        }
+
         private static WorkDemoActivityState ProcessTask(string activityTypeName, WorkDemoActivityState workDemoActivityState)
         {
             if (!int.TryParse(activityTypeName.Last().ToString(), out var id))

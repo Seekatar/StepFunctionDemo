@@ -8,7 +8,17 @@ using Polly;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
-    abstract class AwsActivity<TInput, TOutput>
+    interface IAwsActivity
+    {
+        string Name { get; }
+        Task Start(object? input);
+
+        Task Complete(object? output);
+
+        Task Fail(WorkflowError error);
+    }
+
+    abstract class AwsActivity : IAwsActivity
     {
         private readonly AmazonStepFunctionsClient _sfClient;
         private readonly string _taskToken;
@@ -19,18 +29,18 @@ namespace CCC.CAS.Workflow2Service.Services
 
         protected ILogger Logger => _logger;
 
-
-        protected AwsActivity(AmazonStepFunctionsClient sfClient, string taskToken, ILogger logger)
+        public AwsActivity(AmazonStepFunctionsClient sfClient, string taskToken, ILogger logger)
         {
             _sfClient = sfClient;
             _taskToken = taskToken;
             _logger = logger;
             _activityName = this.GetType().Name;
         }
+        public string Name => _activityName;
 
-        public string Name { get; set; } = "";
-        public abstract Task Start(TInput input);
-        public Task Complete(TOutput output)
+        public abstract Task Start(object? input);
+
+        public Task Complete(object? output)
         {
             // TODO any other exceptions?
             return Policy
@@ -49,6 +59,16 @@ namespace CCC.CAS.Workflow2Service.Services
                     .Execute(async () => await FailTask(_sfClient, _taskToken, error).ConfigureAwait(false));
 
             await task.ConfigureAwait(false);
+        }
+
+        public Task SaveTask(AwsActivity activity, Guid correlationId )
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<string> RetrieveTaskId(AwsActivity activity, Guid correlationId)
+        {
+            throw new NotImplementedException();
         }
 
         private async Task CompleteTask(
@@ -92,6 +112,34 @@ namespace CCC.CAS.Workflow2Service.Services
                 _logger.LogError(ex, "{activityName} task fail failed", _activityName);
                 throw;
             }
+        }
+    }
+
+
+    abstract class AwsActivity<TInput, TOutput> : AwsActivity
+    {
+        protected AwsActivity(AmazonStepFunctionsClient sfClient, string taskToken, ILogger logger) : base(sfClient, taskToken, logger)
+        {
+        }
+
+        public Task Start(string input)
+        {
+            try
+            {
+                var inputObj = JsonSerializer.Deserialize<TInput>(input, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                return Start(inputObj);
+            }
+            catch (Exception e) when (e is JsonException || e is NotSupportedException)
+            {
+                return Fail(new WorkflowError { Reason = WorkflowError.ReasonCode.Error, Message = "Json deserialation error. " + e });
+            }
+        }
+
+        public abstract Task Start(TInput? input);
+
+        public Task Complete(TOutput? output)
+        {
+            return base.Complete(output);
         }
 
     }
