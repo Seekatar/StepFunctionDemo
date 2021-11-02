@@ -14,6 +14,7 @@ using Amazon.StepFunctions.Model;
 using System.Collections.Generic;
 using CCC.CAS.API.Common.Installers;
 using CCC.CAS.Workflow4Api.Services;
+using System.Reflection;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
@@ -26,12 +27,13 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "Cas-Rbr-DemoActivity2",
                                     "Cas-Rbr-DemoActivity3",
                                     "Cas-Rbr-DemoActivity4",
-                                    //"Cas-Rbr-Ppo1",
                                     "Cas-Rbr-Ppo2",
                                     "Cas-Rbr-Ppon",
                                     "Cas-Rbr-Ppo-Exit",
                                     "Cas-Rbr-DocMain",
         };
+        Dictionary<string, (Type Type, ConstructorInfo Constructor)> _activityDict = new();
+        Workflow? _workflow;
 
         public AwsWorkflowActivityService(IOptions<AwsWorkflowConfiguration> config, ILogger<AwsWorkflowActivityService> logger)
         {
@@ -47,11 +49,17 @@ namespace CCC.CAS.Workflow2Service.Services
             // using var sfClient = new AmazonStepFunctionsClient(); // RegionEndpoint.GetBySystemName(_config.Region)); //  _config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
             using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
 
+            _workflow = new Workflow(sfClient, _logger);
+
             await RegisterAsNeeded(sfClient).ConfigureAwait(false);
 
             var tasks = new List<Task>();
 
             foreach (var arn in _myActivities)
+            {
+                tasks.Add(PollForActivity($"{_arnBase}{arn}", sfClient, stoppingToken));
+            }
+            foreach (var arn in _activityDict.Keys)
             {
                 tasks.Add(PollForActivity($"{_arnBase}{arn}", sfClient, stoppingToken));
             }
@@ -90,7 +98,16 @@ namespace CCC.CAS.Workflow2Service.Services
                             }
                             else
                             {
-                                await new Ppo1(sfClient, activityTask.TaskToken, _logger).Start(input).ConfigureAwait(false);
+                                if (_activityDict.ContainsKey(taskName))
+                                {
+                                    var ctor = _activityDict[taskName].Constructor;
+                                    var activity = ctor.Invoke(new object[] { _workflow!, activityTask.TaskToken, _logger }) as IWorkflowActivity;
+                                    if (activity != null)
+                                    {
+                                        await activity.Start(activityTask.Input).ConfigureAwait(false);
+                                    }
+                                }
+                                // await new Ppo1(sfClient, activityTask.TaskToken, _logger).Start(input).ConfigureAwait(false);
                             }
                         }
                         else
@@ -183,15 +200,39 @@ namespace CCC.CAS.Workflow2Service.Services
                 }
             }
 
-            var activityType = typeof(AwsActivity<,>);
+            Type workflowActivityType = typeof(WorkflowActivity<,>);
 
-            var activityTypes = GetTypesInLoadedAssemblies(type => IsSubclassOfRawGeneric(activityType, type));
-            var ctors = activityType.GetConstructors();
-            var ctor = ctors.FirstOrDefault();
-            ctor.Invoke();
+            var activityTypes = GetTypesInLoadedAssemblies(type => IsSubclassOfRawGeneric(workflowActivityType, type));
+            foreach (var activityType in activityTypes)
+            {
+                var ok = false;
+                if (activityType.GetCustomAttributes(typeof(WorkflowAttribute), false).FirstOrDefault() is WorkflowAttribute attr)
+                {
+                    var ctor = activityType.GetConstructors().FirstOrDefault();
+                    var ctorParams = ctor?.GetParameters();
+                    if (ctorParams != null &&
+                        ctorParams.Length == 3 &&
+                        ctorParams[0].ParameterType == typeof(IWorkflow) &&
+                        ctorParams[1].ParameterType == typeof(string) &&
+                        ctorParams[2].ParameterType == typeof(ILogger))
+                    {
+                        _activityDict[attr.Name] = (activityType, ctor!);
+                        _logger.LogInformation("Loaded {activityName}", attr.Name);
+                        ok = true;
+                    }
+
+                    if (!ok)
+                    {
+                        _logger.LogInformation("Missing Constructor on class {activityClass}", activityType.Name);
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("Missing WorkflowAttribute on class {activityClass}", activityType.Name);
+                }
+            }
 
             return;
-
         }
 
         public static List<Type> GetTypesInLoadedAssemblies(Predicate<Type> predicate, string assemblyPrefix = "CCC.")

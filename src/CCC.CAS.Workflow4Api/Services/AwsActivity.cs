@@ -8,121 +8,153 @@ using Polly;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
-    interface IAwsActivity
+    interface IWorkflowActivity
     {
-        string Name { get; }
-        Task Start(object? input);
+        Task Start(string input);
 
         Task Complete(object? output);
 
         Task Fail(WorkflowError error);
     }
 
-    abstract class AwsActivity : IAwsActivity
+    interface IWorkflow
     {
-        private readonly AmazonStepFunctionsClient _sfClient;
-        private readonly string _taskToken;
-        private readonly ILogger _logger;
-        private readonly string _activityName;
+        Task Complete(WorkflowActivity activity, object? output);
+        Task Fail(WorkflowActivity activity, WorkflowError error);
+    }
+
+    class Workflow : IWorkflow
+    {
         private readonly double _retryDelaySeconds = 3;
         private readonly int _retries = 3;
+        private readonly ILogger _logger;
+        private readonly AmazonStepFunctionsClient _sfClient;
 
-        protected ILogger Logger => _logger;
-
-        public AwsActivity(AmazonStepFunctionsClient sfClient, string taskToken, ILogger logger)
+        public Workflow(AmazonStepFunctionsClient sfClient, ILogger logger)
         {
-            _sfClient = sfClient;
-            _taskToken = taskToken;
             _logger = logger;
-            _activityName = this.GetType().Name;
+            _sfClient = sfClient;
         }
-        public string Name => _activityName;
 
-        public abstract Task Start(object? input);
-
-        public Task Complete(object? output)
+        public Task Complete(WorkflowActivity activity, object? output)
         {
             // TODO any other exceptions?
             return Policy
                     .Handle<TaskTimedOutException>()
                     // .Or<ArgumentException>(ex => ex.ParamName == "example")
                     .WaitAndRetry(_retries, retryAttempt => TimeSpan.FromSeconds(_retryDelaySeconds))
-                    .Execute(() => CompleteTask(_sfClient, _taskToken, output));
+                    .Execute(() => CompleteTask(activity, output));
         }
-
-        public async Task Fail(WorkflowError error)
+        public async Task Fail(WorkflowActivity activity, WorkflowError error)
         {
             // TODO any other exceptions?
             var task = Policy
                     .Handle<TaskTimedOutException>()
                     .WaitAndRetry(_retries, retryAttempt => TimeSpan.FromSeconds(_retryDelaySeconds))
-                    .Execute(async () => await FailTask(_sfClient, _taskToken, error).ConfigureAwait(false));
+                    .Execute(async () => await FailTask(activity, error).ConfigureAwait(false));
 
             await task.ConfigureAwait(false);
         }
 
-        public Task SaveTask(AwsActivity activity, Guid correlationId )
+        public Task SaveTask(WorkflowActivity activity, Guid correlationId)
         {
             throw new NotImplementedException();
         }
 
-        public Task<string> RetrieveTaskId(AwsActivity activity, Guid correlationId)
+        public Task<string> RetrieveTaskId(WorkflowActivity activity, Guid correlationId)
         {
             throw new NotImplementedException();
         }
 
-        private async Task CompleteTask(
-            AmazonStepFunctionsClient amazonSimpleWorkflowClient,
-            string taskToken, object? workDemoActivityState)
+        private async Task CompleteTask(WorkflowActivity activity, object? workDemoActivityState)
         {
             var respondActivityTaskCompletedRequest =
                 new SendTaskSuccessRequest()
                 {
                     Output = JsonSerializer.Serialize(workDemoActivityState),
-                    TaskToken = taskToken
+                    TaskToken = activity.TaskToken
                 };
 
             try
             {
-                await amazonSimpleWorkflowClient.SendTaskSuccessAsync(respondActivityTaskCompletedRequest).ConfigureAwait(false);
+                await _sfClient.SendTaskSuccessAsync(respondActivityTaskCompletedRequest).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "{activityName} task complete failed", _activityName);
+                _logger.LogError(ex, "{activityName} task complete failed", activity.GetType().Name);
                 throw;
             }
         }
 
-        private async Task FailTask(AmazonStepFunctionsClient sfClient, string taskToken, WorkflowError error)
+        private async Task FailTask(WorkflowActivity activity, WorkflowError error)
         {
             var respondActivityTaskCompletedRequest =
                 new SendTaskFailureRequest()
                 {
                     Cause = error.Reason.ToString(),
                     Error = error.Message,
-                    TaskToken = taskToken
+                    TaskToken = activity.TaskToken
                 };
 
             try
             {
-                await sfClient.SendTaskFailureAsync(respondActivityTaskCompletedRequest).ConfigureAwait(false);
+                await _sfClient.SendTaskFailureAsync(respondActivityTaskCompletedRequest).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "{activityName} task fail failed", _activityName);
+                _logger.LogError(ex, "{activityName} task fail failed", activity.GetType().Name);
                 throw;
             }
         }
     }
 
-
-    abstract class AwsActivity<TInput, TOutput> : AwsActivity
+    abstract class WorkflowActivity : IWorkflowActivity
     {
-        protected AwsActivity(AmazonStepFunctionsClient sfClient, string taskToken, ILogger logger) : base(sfClient, taskToken, logger)
+        private readonly IWorkflow _workflow;
+        private readonly string _taskToken;
+        private readonly ILogger _logger;
+        private bool _completed;
+
+        protected ILogger Logger => _logger;
+
+        public WorkflowActivity(IWorkflow workflow, string taskToken, ILogger logger)
+        {
+            _workflow = workflow;
+            _taskToken = taskToken;
+            _logger = logger;
+        }
+        public string TaskToken => _taskToken;
+        public bool IsCompleted => _completed;
+
+        public abstract Task Start(string input);
+
+        public async Task Complete(object? output)
+        {
+            await _workflow.Complete(this, output).ConfigureAwait(false);
+            _completed = true;
+        }
+
+        public async Task Fail(WorkflowError error)
+        {
+            await _workflow.Fail(this, error).ConfigureAwait(false);
+            _completed = true;
+        }
+
+    }
+
+    [AttributeUsage(AttributeTargets.Class)]
+    class WorkflowAttribute : Attribute
+    {
+        public string Name { get; set; } = "";
+    }
+
+    abstract class WorkflowActivity<TInput, TOutput> : WorkflowActivity
+    {
+        protected WorkflowActivity(IWorkflow workflow, string taskToken, ILogger logger) : base(workflow, taskToken, logger)
         {
         }
 
-        public Task Start(string input)
+        public override Task Start(string input)
         {
             try
             {
