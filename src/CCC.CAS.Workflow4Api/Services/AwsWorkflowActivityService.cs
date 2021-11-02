@@ -27,8 +27,6 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "Cas-Rbr-DemoActivity2",
                                     "Cas-Rbr-DemoActivity3",
                                     "Cas-Rbr-DemoActivity4",
-                                    "Cas-Rbr-Ppo2",
-                                    "Cas-Rbr-Ppon",
                                     "Cas-Rbr-Ppo-Exit",
                                     "Cas-Rbr-DocMain",
         };
@@ -82,35 +80,23 @@ namespace CCC.CAS.Workflow2Service.Services
                 WorkDemoActivityState? workDemoActivityState = null;
                 try
                 {
-                    workDemoActivityState = JsonSerializer
-                        .Deserialize<WorkDemoActivityState>(activityTask.Input);
-
-                    _logger.LogInformation(">>> {task} fired with state {scenario}", taskName, workDemoActivityState?.ScenarioNumber ?? -1);
-
-                    if (workDemoActivityState != null)
+                    if (_activityDict.ContainsKey(taskName))
                     {
-                        if (taskName == "Cas-Rbr-Ppo1")
+                        var ctor = _activityDict[taskName].Constructor;
+                        var activity = ctor.Invoke(new object[] { _workflow!, activityTask.TaskToken, _logger }) as IWorkflowActivity;
+                        if (activity != null)
                         {
-                            var input = JsonSerializer.Deserialize<ActivityInputBase>(activityTask.Input);
-                            if (input == null)
-                            {
-                                await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false);
-                            }
-                            else
-                            {
-                                if (_activityDict.ContainsKey(taskName))
-                                {
-                                    var ctor = _activityDict[taskName].Constructor;
-                                    var activity = ctor.Invoke(new object[] { _workflow!, activityTask.TaskToken, _logger }) as IWorkflowActivity;
-                                    if (activity != null)
-                                    {
-                                        await activity.Start(activityTask.Input).ConfigureAwait(false);
-                                    }
-                                }
-                                // await new Ppo1(sfClient, activityTask.TaskToken, _logger).Start(input).ConfigureAwait(false);
-                            }
+                            await activity.Start(activityTask.Input).ConfigureAwait(false);
                         }
-                        else
+                    }
+                    else // Demo, old way
+                    {
+                        workDemoActivityState = JsonSerializer
+                            .Deserialize<WorkDemoActivityState>(activityTask.Input);
+
+                        _logger.LogInformation(">>> {task} fired with state {scenario}", taskName, workDemoActivityState?.ScenarioNumber ?? -1);
+
+                        if (workDemoActivityState != null)
                         {
                             workDemoActivityState = ProcessTask(arn, workDemoActivityState);
                             if (taskName == "Cas-Rbr-DemoActivity1")
@@ -149,10 +135,10 @@ namespace CCC.CAS.Workflow2Service.Services
                                 }
                             }
                         }
-                    }
-                    else
-                    {
-                        _logger.LogError("Didn't get state for {task} with token {taskToken}", taskName, activityTask.TaskToken);
+                        else
+                        {
+                            _logger.LogError("Didn't get state for {task} with token {taskToken}", taskName, activityTask.TaskToken);
+                        }
                     }
                 }
                 catch (Exception e)

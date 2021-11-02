@@ -20,6 +20,7 @@ namespace CCC.CAS.Workflow2Service.Services
     interface IWorkflow
     {
         Task Complete(WorkflowActivity activity, object? output);
+        Task Complete(string taskToken, string name, object? output);
         Task Fail(WorkflowActivity activity, WorkflowError error);
     }
 
@@ -36,15 +37,21 @@ namespace CCC.CAS.Workflow2Service.Services
             _sfClient = sfClient;
         }
 
-        public Task Complete(WorkflowActivity activity, object? output)
+        public Task Complete(string taskToken, string name, object? output)
         {
             // TODO any other exceptions?
             return Policy
                     .Handle<TaskTimedOutException>()
                     // .Or<ArgumentException>(ex => ex.ParamName == "example")
                     .WaitAndRetry(_retries, retryAttempt => TimeSpan.FromSeconds(_retryDelaySeconds))
-                    .Execute(() => CompleteTask(activity, output));
+                    .Execute(() => CompleteTask(taskToken, name, output));
         }
+
+        public Task Complete(WorkflowActivity activity, object? output)
+        {
+            return Complete(activity.TaskToken, activity.GetType().Name, output);
+        }
+
         public async Task Fail(WorkflowActivity activity, WorkflowError error)
         {
             // TODO any other exceptions?
@@ -66,13 +73,13 @@ namespace CCC.CAS.Workflow2Service.Services
             throw new NotImplementedException();
         }
 
-        private async Task CompleteTask(WorkflowActivity activity, object? workDemoActivityState)
+        private async Task CompleteTask(string taskToken, string name, object? workDemoActivityState)
         {
             var respondActivityTaskCompletedRequest =
                 new SendTaskSuccessRequest()
                 {
                     Output = JsonSerializer.Serialize(workDemoActivityState),
-                    TaskToken = activity.TaskToken
+                    TaskToken = taskToken
                 };
 
             try
@@ -81,7 +88,7 @@ namespace CCC.CAS.Workflow2Service.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "{activityName} task complete failed", activity.GetType().Name);
+                _logger.LogError(ex, "{activityName} task complete failed", name);
                 throw;
             }
         }
@@ -133,6 +140,12 @@ namespace CCC.CAS.Workflow2Service.Services
             await _workflow.Complete(this, output).ConfigureAwait(false);
             _completed = true;
         }
+        public async Task Complete(string taskToken, object? output)
+        {
+            await _workflow.Complete(taskToken, GetType().Name, output).ConfigureAwait(false);
+            _completed = true;
+        }
+
 
         public async Task Fail(WorkflowError error)
         {
@@ -172,6 +185,11 @@ namespace CCC.CAS.Workflow2Service.Services
         public Task Complete(TOutput? output)
         {
             return base.Complete(output);
+        }
+
+        public Task Complete(string taskToken, TOutput? output)
+        {
+            return base.Complete(taskToken, output);
         }
 
     }
