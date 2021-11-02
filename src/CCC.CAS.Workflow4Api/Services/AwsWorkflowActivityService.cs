@@ -22,22 +22,37 @@ namespace CCC.CAS.Workflow2Service.Services
     {
         private ILogger<AwsWorkflowActivityService> _logger;
         private readonly AwsWorkflowConfiguration _config;
+        private readonly IWorkflowStateRepository _workflowStateRepository;
         const string _arnBase = "arn:aws:states:us-east-1:620135122039:activity:";
         readonly string[] _myActivities = {  "Cas-Rbr-DemoActivity1",
                                     "Cas-Rbr-DemoActivity2",
                                     "Cas-Rbr-DemoActivity3",
                                     "Cas-Rbr-DemoActivity4",
-                                    "Cas-Rbr-Ppo-Exit",
                                     "Cas-Rbr-DocMain",
         };
         Dictionary<string, (Type Type, ConstructorInfo Constructor)> _activityDict = new();
         Workflow? _workflow;
 
-        public AwsWorkflowActivityService(IOptions<AwsWorkflowConfiguration> config, ILogger<AwsWorkflowActivityService> logger)
+        public AwsWorkflowActivityService(IOptions<AwsWorkflowConfiguration> config, ILogger<AwsWorkflowActivityService> logger, IWorkflowStateRepository workflowStateRepository)
         {
             if (config == null) throw new ArgumentNullException(nameof(config));
             _logger = logger;
             _config = config.Value;
+            _workflowStateRepository = workflowStateRepository;
+        }
+
+        public IWorkflowActivity? CreateActivity(Type workflowActivityType, Guid correlationId)
+        {
+            var ctor = _activityDict.Values.Where( o => o.Type == workflowActivityType).SingleOrDefault().Constructor;
+
+            if (ctor != null) {
+                var token = _workflow!.RetrieveActivityState(workflowActivityType, correlationId);
+                if (token != null)
+                {
+                    return ctor.Invoke(new object[] { _workflow!, token, _logger }) as IWorkflowActivity;
+                }
+            }
+            return null;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -47,7 +62,7 @@ namespace CCC.CAS.Workflow2Service.Services
             // using var sfClient = new AmazonStepFunctionsClient(); // RegionEndpoint.GetBySystemName(_config.Region)); //  _config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
             using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
 
-            _workflow = new Workflow(sfClient, _logger);
+            _workflow = new Workflow(sfClient, _logger, _workflowStateRepository);
 
             await RegisterAsNeeded(sfClient).ConfigureAwait(false);
 
@@ -83,8 +98,7 @@ namespace CCC.CAS.Workflow2Service.Services
                     if (_activityDict.ContainsKey(taskName))
                     {
                         var ctor = _activityDict[taskName].Constructor;
-                        var activity = ctor.Invoke(new object[] { _workflow!, activityTask.TaskToken, _logger }) as IWorkflowActivity;
-                        if (activity != null)
+                        if (ctor.Invoke(new object[] { _workflow!, activityTask.TaskToken, _logger }) is IWorkflowActivity activity)
                         {
                             await activity.Start(activityTask.Input).ConfigureAwait(false);
                         }
@@ -203,7 +217,7 @@ namespace CCC.CAS.Workflow2Service.Services
                         ctorParams[2].ParameterType == typeof(ILogger))
                     {
                         _activityDict[attr.Name] = (activityType, ctor!);
-                        _logger.LogInformation("Loaded {activityName}", attr.Name);
+                        _logger.LogInformation("Loaded workflow activity {activityName}", attr.Name);
                         ok = true;
                     }
 

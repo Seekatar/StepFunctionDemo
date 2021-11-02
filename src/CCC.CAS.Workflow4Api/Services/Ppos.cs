@@ -24,7 +24,7 @@ namespace CCC.CAS.Workflow4Api.Services
             // fake out long running task
             return Task.Run(async () =>
             {
-                await Task.Delay(10000).ConfigureAwait(false);
+                await Task.Delay(5000).ConfigureAwait(false);
                 Logger.LogInformation("{activityName} completed!", this.GetType().Name);
                 var _ = Complete(new PpoOutput());
             });
@@ -57,7 +57,7 @@ namespace CCC.CAS.Workflow4Api.Services
         }
     }
 
-    class PpoExitInput
+    class PpoExitInput : ActivityInputBase
     {
         public string TaskToken { get; set; } = "";
     }

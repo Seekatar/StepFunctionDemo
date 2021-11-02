@@ -1,6 +1,7 @@
 using System;
 using CCC.CAS.API.Common.Installers;
 using CCC.CAS.API.Common.Logging;
+using CCC.CAS.API.Common.Mongo;
 using CCC.CAS.API.Common.Storage;
 using CCC.CAS.Workflow2Service.Services;
 using CCC.CAS.Workflow4Api.Interfaces;
@@ -26,7 +27,11 @@ namespace CCC.CAS.Workflow4Api.Installers
 
             try
             {
+                services.AddMongoClient(configuration);
+
                 services.AddHostedService<AwsWorkflowActivityService>();
+
+                services.AddTransient<IWorkflowStateRepository,WorkflowStateRepository>();
 
                 var section = configuration.GetSection(AwsWorkflowConfiguration.DefaultConfigName);
                 services.AddOptions<AwsWorkflowConfiguration>()

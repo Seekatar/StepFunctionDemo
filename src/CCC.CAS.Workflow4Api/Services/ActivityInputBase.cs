@@ -6,7 +6,7 @@ namespace CCC.CAS.Workflow2Service.Services
     public class ActivityInputBase
     {
         [JsonPropertyName("correlationId")]
-        public string CorrelationId { get; set; } = "";
+        public Guid CorrelationId { get; set; }
 
         [JsonPropertyName("requestId")]
         public string RequestId { get; set; } = "";
