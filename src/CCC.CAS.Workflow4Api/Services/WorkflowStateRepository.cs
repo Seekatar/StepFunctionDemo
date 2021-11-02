@@ -16,11 +16,15 @@ public class WorkflowStateRepository : IWorkflowStateRepository
     private readonly ILogger<WorkflowStateRepository> _logger;
     private const string _collectionName = "workflowState";
 
+    [BsonIgnoreExtraElements]
     class ActivityState
     {
-        [BsonElement("actvityFullName")]
-        public string ActvityFullName { get; set; } = "";
-        [BsonElement("correlationId")]
+        public const string activityFullName = "activityFullName";
+        public const string correlationId = "correlationId";
+
+        [BsonElement(activityFullName)]
+        public string ActivityFullName { get; set; } = "";
+        [BsonElement(correlationId)]
         public Guid CorrelationId { get; set; }
         [BsonElement("taskToken ")]
         public string TaskToken { get; set; } = "";
@@ -42,8 +46,8 @@ public class WorkflowStateRepository : IWorkflowStateRepository
         var coll = _database.GetCollection<ActivityState>(_collectionName);
 
         var filter = Builders<ActivityState>.Filter
-            .And(Builders<ActivityState>.Filter.Eq("activityFullName", activityType?.FullName ?? "<bug!>"),
-                 Builders<ActivityState>.Filter.Eq("correlationId", correlationId));
+            .And(Builders<ActivityState>.Filter.Eq(ActivityState.activityFullName, activityType?.FullName ?? "<bug!>"),
+                 Builders<ActivityState>.Filter.Eq(ActivityState.correlationId, correlationId));
         var query = coll.Find(filter);
         return (await query.ToListAsync().ConfigureAwait(false)).SingleOrDefault()?.TaskToken;
     }
@@ -54,7 +58,7 @@ public class WorkflowStateRepository : IWorkflowStateRepository
 
         var coll = _database.GetCollection<ActivityState>(_collectionName);
         await coll.InsertOneAsync(new ActivityState { 
-                    ActvityFullName = activity.GetType().FullName ?? "<bug!>", 
+                    ActivityFullName = activity.GetType().FullName ?? "<bug!>", 
                     CorrelationId = correlationId, 
                     TaskToken = activity.TaskToken,
                     CreationTime = DateTime.UtcNow }).ConfigureAwait(false);

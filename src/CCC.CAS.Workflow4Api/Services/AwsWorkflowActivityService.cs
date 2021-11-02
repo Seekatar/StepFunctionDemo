@@ -14,15 +14,17 @@ using Amazon.StepFunctions.Model;
 using System.Collections.Generic;
 using CCC.CAS.API.Common.Installers;
 using CCC.CAS.Workflow4Api.Services;
-using System.Reflection;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
-    public class AwsWorkflowActivityService : BackgroundService
+#pragma warning disable CA1812
+
+    class AwsWorkflowActivityService : BackgroundService
     {
         private ILogger<AwsWorkflowActivityService> _logger;
         private readonly AwsWorkflowConfiguration _config;
         private readonly IWorkflowStateRepository _workflowStateRepository;
+        private readonly IWorkflowActivityFactory _workflowActivityFactory;
         const string _arnBase = "arn:aws:states:us-east-1:620135122039:activity:";
         readonly string[] _myActivities = {  "Cas-Rbr-DemoActivity1",
                                     "Cas-Rbr-DemoActivity2",
@@ -30,30 +32,17 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "Cas-Rbr-DemoActivity4",
                                     "Cas-Rbr-DocMain",
         };
-        Dictionary<string, (Type Type, ConstructorInfo Constructor)> _activityDict = new();
         Workflow? _workflow;
 
-        public AwsWorkflowActivityService(IOptions<AwsWorkflowConfiguration> config, ILogger<AwsWorkflowActivityService> logger, IWorkflowStateRepository workflowStateRepository)
+        public AwsWorkflowActivityService(IOptions<AwsWorkflowConfiguration> config, ILogger<AwsWorkflowActivityService> logger, IWorkflowStateRepository workflowStateRepository, IWorkflowActivityFactory workflowActivityFactory)
         {
             if (config == null) throw new ArgumentNullException(nameof(config));
             _logger = logger;
             _config = config.Value;
             _workflowStateRepository = workflowStateRepository;
+            _workflowActivityFactory = workflowActivityFactory;
         }
 
-        public IWorkflowActivity? CreateActivity(Type workflowActivityType, Guid correlationId)
-        {
-            var ctor = _activityDict.Values.Where( o => o.Type == workflowActivityType).SingleOrDefault().Constructor;
-
-            if (ctor != null) {
-                var token = _workflow!.RetrieveActivityState(workflowActivityType, correlationId);
-                if (token != null)
-                {
-                    return ctor.Invoke(new object[] { _workflow!, token, _logger }) as IWorkflowActivity;
-                }
-            }
-            return null;
-        }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -72,7 +61,7 @@ namespace CCC.CAS.Workflow2Service.Services
             {
                 tasks.Add(PollForActivity($"{_arnBase}{arn}", sfClient, stoppingToken));
             }
-            foreach (var arn in _activityDict.Keys)
+            foreach (var arn in _workflowActivityFactory.ActivityNames )
             {
                 tasks.Add(PollForActivity($"{_arnBase}{arn}", sfClient, stoppingToken));
             }
@@ -95,13 +84,10 @@ namespace CCC.CAS.Workflow2Service.Services
                 WorkDemoActivityState? workDemoActivityState = null;
                 try
                 {
-                    if (_activityDict.ContainsKey(taskName))
+                    var activity = _workflowActivityFactory.CreateActivity(taskName, _workflow!, activityTask.TaskToken);
+                    if (activity != null)
                     {
-                        var ctor = _activityDict[taskName].Constructor;
-                        if (ctor.Invoke(new object[] { _workflow!, activityTask.TaskToken, _logger }) is IWorkflowActivity activity)
-                        {
-                            await activity.Start(activityTask.Input).ConfigureAwait(false);
-                        }
+                        await activity.Start(activityTask.Input).ConfigureAwait(false);
                     }
                     else // Demo, old way
                     {
@@ -199,69 +185,16 @@ namespace CCC.CAS.Workflow2Service.Services
                     _logger.LogInformation("Added activity {activity}", a);
                 }
             }
-
-            Type workflowActivityType = typeof(WorkflowActivity<,>);
-
-            var activityTypes = GetTypesInLoadedAssemblies(type => IsSubclassOfRawGeneric(workflowActivityType, type));
-            foreach (var activityType in activityTypes)
+            foreach (var a in _workflowActivityFactory.ActivityNames)
             {
-                var ok = false;
-                if (activityType.GetCustomAttributes(typeof(WorkflowAttribute), false).FirstOrDefault() is WorkflowAttribute attr)
+                if (!activities.Activities.Any(o => o.Name == a))
                 {
-                    var ctor = activityType.GetConstructors().FirstOrDefault();
-                    var ctorParams = ctor?.GetParameters();
-                    if (ctorParams != null &&
-                        ctorParams.Length == 3 &&
-                        ctorParams[0].ParameterType == typeof(IWorkflow) &&
-                        ctorParams[1].ParameterType == typeof(string) &&
-                        ctorParams[2].ParameterType == typeof(ILogger))
-                    {
-                        _activityDict[attr.Name] = (activityType, ctor!);
-                        _logger.LogInformation("Loaded workflow activity {activityName}", attr.Name);
-                        ok = true;
-                    }
-
-                    if (!ok)
-                    {
-                        _logger.LogInformation("Missing Constructor on class {activityClass}", activityType.Name);
-                    }
-                }
-                else
-                {
-                    _logger.LogInformation("Missing WorkflowAttribute on class {activityClass}", activityType.Name);
+                    await sfClient.CreateActivityAsync(new CreateActivityRequest() { Name = a, Tags = new List<Tag> { new Tag { Key = "Casualty", Value = "test-jmw" } } }).ConfigureAwait(false);
+                    _logger.LogInformation("Added activity {activity}", a);
                 }
             }
 
             return;
-        }
-
-        public static List<Type> GetTypesInLoadedAssemblies(Predicate<Type> predicate, string assemblyPrefix = "CCC.")
-        {
-            return AppDomain.CurrentDomain.GetAssemblies()
-                                .Where(o => o.GetName().Name?.StartsWith(assemblyPrefix, StringComparison.OrdinalIgnoreCase) ?? false)
-                                .SelectMany(s => s.GetTypes())
-                                .Where(x => predicate(x))
-                                .ToList();
-        }
-
-
-        // modified from this link to add if check to only do concrete classes and not itself
-        // https://stackoverflow.com/questions/457676/check-if-a-class-is-derived-from-a-generic-class
-        static bool IsSubclassOfRawGeneric(Type generic, Type? toCheck)
-        {
-            if (toCheck != null && generic != toCheck && !toCheck.IsInterface && !toCheck.IsAbstract)
-            {
-                while (toCheck != null && toCheck != typeof(object))
-                {
-                    var cur = toCheck.IsGenericType ? toCheck.GetGenericTypeDefinition() : toCheck;
-                    if (generic == cur)
-                    {
-                        return true;
-                    }
-                    toCheck = toCheck.BaseType;
-                }
-            }
-            return false;
         }
 
         private static WorkDemoActivityState ProcessTask(string activityTypeName, WorkDemoActivityState workDemoActivityState)
@@ -304,5 +237,6 @@ namespace CCC.CAS.Workflow2Service.Services
             return await client.GetActivityTaskAsync(req).ConfigureAwait(false);
         }
     }
+#pragma warning restore CA1812
 }
 

@@ -39,6 +39,7 @@ namespace CCC.CAS.Workflow4Api.Installers
                          .ValidateDataAnnotations();
 
                 services.AddSingleton<IWorkflowService, WorkflowService>();
+                services.AddSingleton<IWorkflowActivityFactory, WorkflowActivityFactory>();
 
                 _debugLogger.LogDebug("Services added.");
             }
