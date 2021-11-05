@@ -22,8 +22,6 @@ namespace CCC.CAS.Workflow2Service.Services
     class AwsWorkflowActivityService : BackgroundService
     {
         private ILogger<AwsWorkflowActivityService> _logger;
-        private readonly AwsWorkflowConfiguration _config;
-        private readonly IWorkflowStateRepository _workflowStateRepository;
         private readonly IWorkflowActivityFactory _workflowActivityFactory;
         const string _arnBase = "arn:aws:states:us-east-1:620135122039:activity:";
         readonly string[] _myActivities = {  "Cas-Rbr-DemoActivity1",
@@ -32,28 +30,25 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "Cas-Rbr-DemoActivity4",
                                     "Cas-Rbr-DocMain",
         };
-        Workflow? _workflow;
+        IWorkflow _workflow;
+        private IEnumerable<IWorkflowActivity> _activities;
 
-        public AwsWorkflowActivityService(IOptions<AwsWorkflowConfiguration> config, ILogger<AwsWorkflowActivityService> logger, IWorkflowStateRepository workflowStateRepository, IWorkflowActivityFactory workflowActivityFactory)
+        public AwsWorkflowActivityService(ILogger<AwsWorkflowActivityService> logger, 
+                                            IWorkflowActivityFactory workflowActivityFactory, IWorkflow workflow, 
+                                            IEnumerable<IWorkflowActivity> activities)
         {
-            if (config == null) throw new ArgumentNullException(nameof(config));
             _logger = logger;
-            _config = config.Value;
-            _workflowStateRepository = workflowStateRepository;
             _workflowActivityFactory = workflowActivityFactory;
+            _workflow = workflow;
+            _activities = activities;
         }
 
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            // This reads from C:\Users\<me>\.aws\credentials for the secret and 
-            // the region is from environment (LaunchSettings.json)
-            // using var sfClient = new AmazonStepFunctionsClient(); // RegionEndpoint.GetBySystemName(_config.Region)); //  _config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
-            using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
+            using var sfClient = StepFunctionClientFactory.GetClient();
 
-            _workflow = new Workflow(sfClient, _logger, _workflowStateRepository);
-
-            await RegisterAsNeeded(sfClient).ConfigureAwait(false);
+            await RegisterActivities(sfClient).ConfigureAwait(false);
 
             var tasks = new List<Task>();
 
@@ -84,7 +79,7 @@ namespace CCC.CAS.Workflow2Service.Services
                 WorkDemoActivityState? workDemoActivityState = null;
                 try
                 {
-                    var activity = _workflowActivityFactory.CreateActivity(taskName, _workflow!, activityTask.TaskToken);
+                    var activity = await _workflowActivityFactory.CreateActivity(taskName, _workflow!, activityTask.TaskToken).ConfigureAwait(false);
                     if (activity != null)
                     {
                         await activity.Start(activityTask.Input).ConfigureAwait(false);
@@ -173,7 +168,7 @@ namespace CCC.CAS.Workflow2Service.Services
             }
         }
 
-        private async Task RegisterAsNeeded(AmazonStepFunctionsClient sfClient)
+        private async Task RegisterActivities(AmazonStepFunctionsClient sfClient)
         {
             var activities = await sfClient.ListActivitiesAsync(new ListActivitiesRequest() { }).ConfigureAwait(false);
 

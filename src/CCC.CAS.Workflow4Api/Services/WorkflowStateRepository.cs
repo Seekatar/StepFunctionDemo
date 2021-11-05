@@ -43,22 +43,31 @@ public class WorkflowStateRepository : IWorkflowStateRepository
 
     public async Task<string?> RetrieveActivityState(Type activityType, Guid correlationId)
     {
+        if (activityType?.FullName == null) throw new ArgumentNullException(nameof(activityType));
+
         var coll = _database.GetCollection<ActivityState>(_collectionName);
 
         var filter = Builders<ActivityState>.Filter
-            .And(Builders<ActivityState>.Filter.Eq(ActivityState.activityFullName, activityType?.FullName ?? "<bug!>"),
+            .And(Builders<ActivityState>.Filter.Eq(ActivityState.activityFullName, activityType!.FullName),
                  Builders<ActivityState>.Filter.Eq(ActivityState.correlationId, correlationId));
         var query = coll.Find(filter);
-        return (await query.ToListAsync().ConfigureAwait(false)).SingleOrDefault()?.TaskToken;
+        var ret = (await query.ToListAsync().ConfigureAwait(false)).SingleOrDefault()?.TaskToken;
+        if (ret != null)
+        {
+            await coll.DeleteOneAsync(filter).ConfigureAwait(false);
+        }
+        return ret;
     }
 
     public async Task SaveActivityState(IWorkflowActivity activity, Guid correlationId)
     {
-        if (activity?.GetType().FullName == null) throw new ArgumentNullException(nameof(activity));
+        if (activity == null) throw new ArgumentNullException(nameof(activity));
+        Type t = activity!.GetType();
+        if (t.FullName == null) throw new ArgumentNullException(nameof(activity));
 
         var coll = _database.GetCollection<ActivityState>(_collectionName);
         await coll.InsertOneAsync(new ActivityState { 
-                    ActivityFullName = activity.GetType().FullName ?? "<bug!>", 
+                    ActivityFullName = t!.FullName, 
                     CorrelationId = correlationId, 
                     TaskToken = activity.TaskToken,
                     CreationTime = DateTime.UtcNow }).ConfigureAwait(false);

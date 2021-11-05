@@ -28,7 +28,7 @@ namespace CCC.CAS.Workflow4Api.Services
                 Logger.LogInformation("{activityName} completed!", this.GetType().Name);
                 if (WorkflowActivityFactory.Instance != null && input != null)
                 {
-                    var activity = WorkflowActivityFactory.Instance.CreatePausedActivity(this.GetType(), input.CorrelationId, Workflow);
+                    var activity = await WorkflowActivityFactory.Instance.CreatePausedActivity(this.GetType(), input.CorrelationId, Workflow).ConfigureAwait(false);
                     if (activity != null)
                     {
                         await activity.Complete(new PpoOutput()).ConfigureAwait(false);

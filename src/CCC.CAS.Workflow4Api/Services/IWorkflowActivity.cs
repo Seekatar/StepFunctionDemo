@@ -10,7 +10,7 @@ namespace CCC.CAS.Workflow2Service.Services
 
         Task Fail(WorkflowError workflowError);
 
-        string TaskToken { get; }
+        string TaskToken { get; set; }
     }
 }
 

@@ -18,11 +18,11 @@ namespace CCC.CAS.Workflow2Service.Services
         private readonly IWorkflowStateRepository _workflowStateRepository;
         private readonly AmazonStepFunctionsClient _sfClient;
 
-        public Workflow(AmazonStepFunctionsClient sfClient, ILogger logger, IWorkflowStateRepository workflowStateRepository)
+        public Workflow(ILogger logger, IWorkflowStateRepository workflowStateRepository)
         {
             _logger = logger;
             _workflowStateRepository = workflowStateRepository;
-            _sfClient = sfClient;
+            _sfClient = StepFunctionClientFactory.GetClient();
         }
 
         public Task Complete(string taskToken, string name, object? output)
@@ -51,14 +51,14 @@ namespace CCC.CAS.Workflow2Service.Services
             await task.ConfigureAwait(false);
         }
 
-        public Task SaveActivityState(IWorkflowActivity activity, Guid correlationId)
+        public async Task SaveActivityState(IWorkflowActivity activity, Guid correlationId)
         {
-            return _workflowStateRepository.SaveActivityState(activity, correlationId);
+            await _workflowStateRepository.SaveActivityState(activity, correlationId).ConfigureAwait(false);
         }
 
-        public Task<string?> RetrieveActivityState(Type activityType, Guid correlationId)
+        public async Task<string?> RetrieveActivityState(Type activityType, Guid correlationId)
         {
-            return _workflowStateRepository.RetrieveActivityState(activityType, correlationId);
+            return await _workflowStateRepository.RetrieveActivityState(activityType, correlationId).ConfigureAwait(false);
         }
 
         private async Task CompleteTask(string taskToken, string name, object? workDemoActivityState)

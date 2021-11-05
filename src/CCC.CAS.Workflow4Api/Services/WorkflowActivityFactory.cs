@@ -4,6 +4,7 @@ using System.Linq;
 using System.Collections.Generic;
 using CCC.CAS.Workflow4Api.Services;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
@@ -62,24 +63,25 @@ namespace CCC.CAS.Workflow2Service.Services
             }
         }
 
-        public IWorkflowActivity? CreateActivity(string taskName, IWorkflow workflow, string taskToken)
+        public Task<IWorkflowActivity?> CreateActivity(string taskName, IWorkflow workflow, string taskToken)
         {
+            IWorkflowActivity? ret = null;
+
             if (_activityDict.ContainsKey(taskName))
             {
                 var ctor = _activityDict[taskName].Constructor;
-                return ctor.Invoke(new object[] { workflow, taskToken, _logger }) as IWorkflowActivity;
+                ret = ctor.Invoke(new object[] { workflow, taskToken, _logger }) as IWorkflowActivity;
             }
-            return null;
+            return Task.FromResult(ret);
         }
 
-        public IWorkflowActivity? CreatePausedActivity(Type workflowActivityType, Guid correlationId, IWorkflow workflow)
+        public async Task<IWorkflowActivity?> CreatePausedActivity(Type workflowActivityType, Guid correlationId, IWorkflow workflow)
         {
-
             var ctor = _activityDict.Values.Where(o => o.Type == workflowActivityType).SingleOrDefault().Constructor;
 
             if (ctor != null)
             {
-                var token = _workflowStateRepository!.RetrieveActivityState(workflowActivityType, correlationId).Result; // TODO async
+                var token = await _workflowStateRepository!.RetrieveActivityState(workflowActivityType, correlationId).ConfigureAwait(false);
                 if (token != null)
                 {
                     return ctor.Invoke(new object[] { workflow, token, _logger }) as IWorkflowActivity;
@@ -88,10 +90,6 @@ namespace CCC.CAS.Workflow2Service.Services
             return null;
         }
 
-        public void Register()
-        {
-            throw new NotImplementedException();
-        }
         public static List<Type> GetTypesInLoadedAssemblies(Predicate<Type> predicate, string assemblyPrefix = "CCC.")
         {
             return AppDomain.CurrentDomain.GetAssemblies()

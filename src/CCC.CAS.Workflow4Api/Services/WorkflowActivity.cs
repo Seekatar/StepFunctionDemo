@@ -5,31 +5,33 @@ using System.Threading.Tasks;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
-    abstract class WorkflowActivity<TInput, TOutput> : WorkflowActivityBase where TInput : ActivityInputBase
+    abstract class WorkflowActivity<TInput, TOutput> : WorkflowActivityBase where TInput : CorrelatedActivityInput
     {
-        protected WorkflowActivity(IWorkflow workflow, string taskToken, ILogger logger) : base(workflow, taskToken, logger)
+        protected WorkflowActivity(IWorkflow workflow, ILogger logger) : base(workflow, logger)
         {
         }
 
-        public override Task Start(string input)
+        public async override Task Start(string input)
         {
             try
             {
                 var inputObj = JsonSerializer.Deserialize<TInput>(input, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                var ret = Start(inputObj);
+                await Start(inputObj).ConfigureAwait(false);
                 if (!IsActivityComplete)
                 {
                     if (inputObj != null)
                     {
-                        Workflow.SaveActivityState(this, inputObj.CorrelationId);
+                        await Workflow.SaveActivityState(this, inputObj.CorrelationId).ConfigureAwait(false);
                     }
-                    // TODO what if no input?
+                    else
+                    {
+                        await Fail(new WorkflowError { ActivityName = GetType().Name, Reason = WorkflowError.ReasonCode.Error, Message = "For long running activities, must have input with correlationId" }).ConfigureAwait(false);
+                    }
                 }
-                return ret;
             }
             catch (Exception e) when (e is JsonException || e is NotSupportedException)
             {
-                return Fail(new WorkflowError { Reason = WorkflowError.ReasonCode.Error, Message = "Json deserialation error. " + e });
+                await Fail (new WorkflowError { ActivityName = GetType().Name, Reason = WorkflowError.ReasonCode.Error, Message = "Json deserialation error. " + e }).ConfigureAwait(false);
             }
         }
 

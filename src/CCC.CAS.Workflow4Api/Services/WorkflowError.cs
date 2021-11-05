@@ -9,6 +9,7 @@
         }
 
         public ReasonCode Reason { get; set; }
+        public string? ActivityName { get; set; }
         public string Message { get; set; } = "";
     }
 }

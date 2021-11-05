@@ -6,20 +6,18 @@ namespace CCC.CAS.Workflow2Service.Services
     abstract class WorkflowActivityBase : IWorkflowActivity
     {
         private readonly IWorkflow _workflow;
-        private readonly string _taskToken;
         private readonly ILogger _logger;
         private bool _completed;
 
         protected ILogger Logger => _logger;
         protected IWorkflow Workflow => _workflow;
 
-        public WorkflowActivityBase(IWorkflow workflow, string taskToken, ILogger logger)
+        public WorkflowActivityBase(IWorkflow workflow, ILogger logger)
         {
             _workflow = workflow;
-            _taskToken = taskToken;
             _logger = logger;
         }
-        public string TaskToken => _taskToken;
+        public string TaskToken { get; set; } = "";
         public bool IsActivityComplete => _completed;
 
         public abstract Task Start(string input);

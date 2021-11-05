@@ -3,11 +3,14 @@ using System.Text.Json.Serialization;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
-    public class ActivityInputBase
+    public class CorrelatedActivityInput
     {
         [JsonPropertyName("correlationId")]
         public Guid CorrelationId { get; set; } = Guid.NewGuid();
+    }
 
+    public class ActivityInputBase : CorrelatedActivityInput
+    {
         [JsonPropertyName("requestId")]
         public string RequestId { get; set; } = "";
         

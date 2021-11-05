@@ -16,21 +16,18 @@ namespace CCC.CAS.Workflow4Api.Services
     public class WorkflowService : IWorkflowService
     {
         private readonly ILogger<WorkflowService> _logger;
-        private readonly AwsWorkflowConfiguration _config;
         string[] _stateMachineArns = { "arn:aws:states:us-east-1:620135122039:stateMachine:Cas-Rbr-Test-ErrorHandling",
                                        "arn:aws:states:us-east-1:620135122039:stateMachine:Cas-Rbr-Recommendations" };
 
 
-        public WorkflowService(IOptions<AwsWorkflowConfiguration> config, ILogger<WorkflowService> logger)
+        public WorkflowService(ILogger<WorkflowService> logger)
         {
-            if (config == null) throw new ArgumentNullException(nameof(config));
             _logger = logger;
-            _config = config.Value;
         }
 
         public async Task RestartWorkflow(string taskToken)
         {
-            using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
+            using var sfClient = StepFunctionClientFactory.GetClient();
             var result = await sfClient.SendTaskSuccessAsync(new Amazon.StepFunctions.Model.SendTaskSuccessRequest
             {
                 TaskToken = taskToken,
@@ -48,9 +45,10 @@ namespace CCC.CAS.Workflow4Api.Services
             await StartWorkflow(_stateMachineArns[1], state).ConfigureAwait(false);
         }
 
-        async Task StartWorkflow(string arn, WorkDemoActivityState state)
-        { 
-            using var sfClient = new AmazonStepFunctionsClient(_config.AccessKey, _config.SecretKey, RegionEndpoint.GetBySystemName(_config.Region));
+        static async Task StartWorkflow(string arn, WorkDemoActivityState state)
+        {
+            using var sfClient = StepFunctionClientFactory.GetClient();
+
             var result = await sfClient.StartExecutionAsync(new Amazon.StepFunctions.Model.StartExecutionRequest()
             {
                 StateMachineArn = arn,
