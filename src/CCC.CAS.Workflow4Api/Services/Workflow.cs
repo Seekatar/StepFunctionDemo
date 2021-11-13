@@ -10,6 +10,8 @@ using CCC.CAS.Workflow4Api.Services;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
+#pragma warning disable CA1812 // never instantiated
+
     class Workflow : IWorkflow
     {
         private readonly double _retryDelaySeconds = 3;
@@ -58,7 +60,7 @@ namespace CCC.CAS.Workflow2Service.Services
 
         public async Task<string?> RetrieveActivityState(Type activityType, Guid correlationId)
         {
-            return await _workflowStateRepository.RetrieveActivityState(activityType, correlationId).ConfigureAwait(false);
+            return await _workflowStateRepository.RetrieveActivityState(activityType?.FullName ?? "", correlationId).ConfigureAwait(false);
         }
 
         private async Task CompleteTask(string taskToken, string name, object? workDemoActivityState)
@@ -102,5 +104,6 @@ namespace CCC.CAS.Workflow2Service.Services
             }
         }
     }
+#pragma warning restore CA1812 // never instantiated
 }
 

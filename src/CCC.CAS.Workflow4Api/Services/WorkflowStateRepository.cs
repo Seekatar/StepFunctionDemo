@@ -41,14 +41,14 @@ public class WorkflowStateRepository : IWorkflowStateRepository
         _database = _client.GetDatabase(dbName);
     }
 
-    public async Task<string?> RetrieveActivityState(Type activityType, Guid correlationId)
+    public async Task<string?> RetrieveActivityState(string activityTypeName, Guid correlationId)
     {
-        if (activityType?.FullName == null) throw new ArgumentNullException(nameof(activityType));
+        if (activityTypeName == null) throw new ArgumentNullException(nameof(activityTypeName));
 
         var coll = _database.GetCollection<ActivityState>(_collectionName);
 
         var filter = Builders<ActivityState>.Filter
-            .And(Builders<ActivityState>.Filter.Eq(ActivityState.activityFullName, activityType!.FullName),
+            .And(Builders<ActivityState>.Filter.Eq(ActivityState.activityFullName, activityTypeName),
                  Builders<ActivityState>.Filter.Eq(ActivityState.correlationId, correlationId));
         var query = coll.Find(filter);
         var ret = (await query.ToListAsync().ConfigureAwait(false)).SingleOrDefault()?.TaskToken;

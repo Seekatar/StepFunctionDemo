@@ -38,6 +38,8 @@ namespace CCC.CAS.Workflow4Api.Installers
                          .Bind(section)
                          .ValidateDataAnnotations();
 
+                WorkflowActivityFactory.Register(configuration, services, _debugLogger);
+
                 services.AddSingleton<IWorkflow, Workflow>();
                 services.AddSingleton<IWorkflowService, WorkflowService>();
                 services.AddSingleton<IWorkflowActivityFactory, WorkflowActivityFactory>();

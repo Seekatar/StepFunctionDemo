@@ -15,7 +15,7 @@ namespace CCC.CAS.Workflow4Api.Services
 
     class TestPpo : WorkflowActivity<ActivityInputBase, PpoOutput>
     {
-        protected TestPpo(IWorkflow workflow, string taskToken, ILogger logger) : base(workflow, taskToken, logger)
+        protected TestPpo(IWorkflow workflow, ILogger logger) : base(workflow, logger)
         {
         }
 
@@ -28,9 +28,10 @@ namespace CCC.CAS.Workflow4Api.Services
                 Logger.LogInformation("{activityName} completed!", this.GetType().Name);
                 if (WorkflowActivityFactory.Instance != null && input != null)
                 {
-                    var activity = await WorkflowActivityFactory.Instance.CreatePausedActivity(this.GetType(), input.CorrelationId, Workflow).ConfigureAwait(false);
-                    if (activity != null)
+                    var (token, activity) = await WorkflowActivityFactory.Instance.CreatePausedActivity(this.GetType(), input.CorrelationId).ConfigureAwait(false);
+                    if (token != null && activity != null)
                     {
+                        activity.TaskToken = token;
                         await activity.Complete(new PpoOutput()).ConfigureAwait(false);
                     }
                 }
@@ -43,7 +44,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppo1")]
     class Ppo1 : TestPpo
     {
-        public Ppo1(IWorkflow workflow, string taskToken, ILogger logger) : base(workflow, taskToken, logger)
+        public Ppo1(IWorkflow workflow, ILogger logger) : base(workflow, logger)
         {
         }
     }
@@ -51,7 +52,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppo2")]
     class Ppo2 : TestPpo
     {
-        public Ppo2(IWorkflow workflow, string taskToken, ILogger logger) : base(workflow, taskToken, logger)
+        public Ppo2(IWorkflow workflow, ILogger logger) : base(workflow, logger)
         {
         }
     }
@@ -59,7 +60,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppon")]
     class Ppon : TestPpo
     {
-        public Ppon(IWorkflow workflow, string taskToken, ILogger logger) : base(workflow, taskToken, logger)
+        public Ppon(IWorkflow workflow, ILogger logger) : base(workflow, logger)
         {
         }
     }
@@ -72,7 +73,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppo-Exit")]
     class PpoExit : WorkflowActivity<PpoExitInput, PpoOutput>
     {
-        public PpoExit(IWorkflow workflow, string taskToken, ILogger logger) : base(workflow, taskToken, logger)
+        public PpoExit(IWorkflow workflow, ILogger logger) : base(workflow, logger)
         {
         }
 

@@ -9,6 +9,6 @@ namespace CCC.CAS.Workflow4Api.Services
     public interface IWorkflowStateRepository
     {
         Task SaveActivityState(IWorkflowActivity activity, Guid correlationId);
-        Task<string?> RetrieveActivityState(Type activityType, Guid correlationId);
+        Task<string?> RetrieveActivityState(string activityTypeName, Guid correlationId);
     }
 }

@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using CCC.CAS.Workflow4Api.Services;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
@@ -13,52 +15,59 @@ namespace CCC.CAS.Workflow2Service.Services
     {
         private IWorkflowStateRepository _workflowStateRepository;
         private readonly ILogger<WorkflowActivityFactory> _logger;
-        private Dictionary<string, (Type Type, ConstructorInfo Constructor)> _activityDict = new();
+        private static Dictionary<string, (Type Type, IWorkflowActivity? Instance)> _activityDict = new();
         static IWorkflowActivityFactory? _me;
 
         static public IWorkflowActivityFactory? Instance => _me;
 
-        public WorkflowActivityFactory(IWorkflowStateRepository workflowStateRepository, ILogger<WorkflowActivityFactory> logger)
+        public WorkflowActivityFactory(IWorkflowStateRepository workflowStateRepository, ILogger<WorkflowActivityFactory> logger, IEnumerable<IWorkflowActivity> activities)
         {
             _workflowStateRepository = workflowStateRepository;
             _logger = logger;
-            Load();
+            foreach (var activity in activities)
+            {
+                var value = _activityDict.Values.Where(o => o.Type == activity.GetType()).SingleOrDefault();
+                if (value.Type != null)
+                {
+                    value.Instance = activity;
+                }
+            }
             _me = this;
         }
 
         public List<string> ActivityNames => _activityDict.Keys.ToList();
 
-        private void Load()
+        public static void Register(IConfiguration _, IServiceCollection services, ILogger logger)
         {
-            Type workflowActivityType = typeof(WorkflowActivity<,>);
-
-            var activityTypes = GetTypesInLoadedAssemblies(type => IsSubclassOfRawGeneric(workflowActivityType, type));
-            foreach (var activityType in activityTypes)
+            Load(logger);
+            foreach ( var act in _activityDict)
             {
-                var ok = false;
-                if (activityType.GetCustomAttributes(typeof(WorkflowAttribute), false).FirstOrDefault() is WorkflowAttribute attr)
-                {
-                    var ctor = activityType.GetConstructors().FirstOrDefault();
-                    var ctorParams = ctor?.GetParameters();
-                    if (ctorParams != null &&
-                        ctorParams.Length == 3 &&
-                        ctorParams[0].ParameterType == typeof(IWorkflow) &&
-                        ctorParams[1].ParameterType == typeof(string) &&
-                        ctorParams[2].ParameterType == typeof(ILogger))
-                    {
-                        _activityDict[attr.Name] = (activityType, ctor!);
-                        _logger.LogInformation("Loaded workflow activity {activityName}", attr.Name);
-                        ok = true;
-                    }
+                services.AddSingleton(typeof(IWorkflowActivity), act.Value);
+            }
+        }
 
-                    if (!ok)
-                    {
-                        _logger.LogInformation("Missing Constructor on class {activityClass}", activityType.Name);
-                    }
-                }
-                else
+        private static void Load(ILogger logger)
+        {
+            lock (_activityDict)
+            {
+                if (_activityDict.Any())
                 {
-                    _logger.LogInformation("Missing WorkflowAttribute on class {activityClass}", activityType.Name);
+                    return;
+                }
+
+                Type workflowActivityType = typeof(WorkflowActivity<,>);
+
+                var activityTypes = GetTypesInLoadedAssemblies(type => IsSubclassOfRawGeneric(workflowActivityType, type));
+                foreach (var activityType in activityTypes)
+                {
+                    if (activityType.GetCustomAttributes(typeof(WorkflowAttribute), false).FirstOrDefault() is WorkflowAttribute attr)
+                    {
+                        _activityDict[attr.Name] = new (activityType, null);
+                    }
+                    else
+                    {
+                        logger.LogInformation("Missing WorkflowAttribute on class {activityClass}", activityType.Name);
+                    }
                 }
             }
         }
@@ -69,25 +78,24 @@ namespace CCC.CAS.Workflow2Service.Services
 
             if (_activityDict.ContainsKey(taskName))
             {
-                var ctor = _activityDict[taskName].Constructor;
-                ret = ctor.Invoke(new object[] { workflow, taskToken, _logger }) as IWorkflowActivity;
+                ret = _activityDict[taskName].Instance;
             }
             return Task.FromResult(ret);
         }
 
-        public async Task<IWorkflowActivity?> CreatePausedActivity(Type workflowActivityType, Guid correlationId, IWorkflow workflow)
+        public async Task<(string? Token, IWorkflowActivity? Activity)> CreatePausedActivity(Type workflowActivityType, Guid correlationId)
         {
-            var ctor = _activityDict.Values.Where(o => o.Type == workflowActivityType).SingleOrDefault().Constructor;
+            var value = _activityDict.Values.Where(o => o.Type == workflowActivityType).SingleOrDefault();
 
-            if (ctor != null)
+            if (value.Type?.FullName != null)
             {
-                var token = await _workflowStateRepository!.RetrieveActivityState(workflowActivityType, correlationId).ConfigureAwait(false);
+                var token = await _workflowStateRepository!.RetrieveActivityState(value.Type.FullName, correlationId).ConfigureAwait(false);
                 if (token != null)
                 {
-                    return ctor.Invoke(new object[] { workflow, token, _logger }) as IWorkflowActivity;
+                    return (token,value.Instance);
                 }
             }
-            return null;
+            return (null,null);
         }
 
         public static List<Type> GetTypesInLoadedAssemblies(Predicate<Type> predicate, string assemblyPrefix = "CCC.")
