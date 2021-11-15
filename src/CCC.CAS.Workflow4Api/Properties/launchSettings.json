@@ -8,6 +8,7 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "AWS_REGION": "us-east-1",
+        " AWS_PROFILE": "default",
         "SqlProxy:BaseUri": "http://localhost:5000"
       },
       "applicationUrl": "http://localhost:58377"

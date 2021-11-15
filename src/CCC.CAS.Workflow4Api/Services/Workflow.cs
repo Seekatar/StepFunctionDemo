@@ -16,11 +16,11 @@ namespace CCC.CAS.Workflow2Service.Services
     {
         private readonly double _retryDelaySeconds = 3;
         private readonly int _retries = 3;
-        private readonly ILogger _logger;
+        private readonly ILogger<Workflow> _logger;
         private readonly IWorkflowStateRepository _workflowStateRepository;
         private readonly AmazonStepFunctionsClient _sfClient;
 
-        public Workflow(ILogger logger, IWorkflowStateRepository workflowStateRepository)
+        public Workflow(ILogger<Workflow> logger, IWorkflowStateRepository workflowStateRepository)
         {
             _logger = logger;
             _workflowStateRepository = workflowStateRepository;

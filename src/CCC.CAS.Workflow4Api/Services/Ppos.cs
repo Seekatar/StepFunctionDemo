@@ -44,7 +44,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppo1")]
     class Ppo1 : TestPpo
     {
-        public Ppo1(IWorkflow workflow, ILogger logger) : base(workflow, logger)
+        public Ppo1(IWorkflow workflow, ILogger<Ppo1> logger) : base(workflow, logger)
         {
         }
     }
@@ -52,7 +52,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppo2")]
     class Ppo2 : TestPpo
     {
-        public Ppo2(IWorkflow workflow, ILogger logger) : base(workflow, logger)
+        public Ppo2(IWorkflow workflow, ILogger<Ppo2> logger) : base(workflow, logger)
         {
         }
     }
@@ -60,7 +60,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppon")]
     class Ppon : TestPpo
     {
-        public Ppon(IWorkflow workflow, ILogger logger) : base(workflow, logger)
+        public Ppon(IWorkflow workflow, ILogger<Ppon> logger) : base(workflow, logger)
         {
         }
     }
@@ -73,7 +73,7 @@ namespace CCC.CAS.Workflow4Api.Services
     [Workflow(Name = "Cas-Rbr-Ppo-Exit")]
     class PpoExit : WorkflowActivity<PpoExitInput, PpoOutput>
     {
-        public PpoExit(IWorkflow workflow, ILogger logger) : base(workflow, logger)
+        public PpoExit(IWorkflow workflow, ILogger<PpoExit> logger) : base(workflow, logger)
         {
         }
 

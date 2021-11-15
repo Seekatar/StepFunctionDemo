@@ -42,7 +42,7 @@ namespace CCC.CAS.Workflow2Service.Services
             Load(logger);
             foreach ( var act in _activityDict)
             {
-                services.AddSingleton(typeof(IWorkflowActivity), act.Value);
+                services.AddSingleton(typeof(IWorkflowActivity), act.Value.Type);
             }
         }
 
