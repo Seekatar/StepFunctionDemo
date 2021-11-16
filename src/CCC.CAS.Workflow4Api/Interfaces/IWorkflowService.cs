@@ -9,7 +9,7 @@ namespace CCC.CAS.Workflow4Api.Interfaces
     public interface IWorkflowService
     {
         Task StartDemoWorkflow(WorkDemoActivityState state);
-        Task RestartWorkflow(string taskToken);
+        Task RestartWorkflow(WorkflowActivityHandle handle);
         Task StartDocWorkflow(WorkDemoActivityState state);
     }
 }

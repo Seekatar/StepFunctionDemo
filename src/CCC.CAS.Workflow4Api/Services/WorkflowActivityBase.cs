@@ -17,7 +17,8 @@ namespace CCC.CAS.Workflow2Service.Services
             _workflow = workflow;
             _logger = logger;
         }
-        public string TaskToken { get; set; } = "";
+        public WorkflowActivityHandle Handle { get; set; } = new WorkflowActivityHandle();
+
         public bool IsActivityComplete => _completed;
 
         public abstract Task Start(string input);
@@ -27,9 +28,9 @@ namespace CCC.CAS.Workflow2Service.Services
             await _workflow.Complete(this, output).ConfigureAwait(false);
             _completed = true;
         }
-        public async Task Complete(string taskToken, object? output)
+        public async Task Complete(WorkflowActivityHandle handle, object? output)
         {
-            await _workflow.Complete(taskToken, GetType().Name, output).ConfigureAwait(false);
+            await _workflow.Complete(handle, GetType().Name, output).ConfigureAwait(false);
             _completed = true;
         }
 

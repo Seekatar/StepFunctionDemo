@@ -3,7 +3,7 @@
   "profiles": {
     "Kestrel": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "launchBrowser": false,
       "launchUrl": "workflow4-api/swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"

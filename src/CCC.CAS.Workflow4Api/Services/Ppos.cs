@@ -30,11 +30,10 @@ namespace CCC.CAS.Workflow4Api.Services
                 Logger.LogInformation("{activityName} completed!", this.GetType().Name);
                 if (WorkflowActivityFactory.Instance != null && input != null)
                 {
-                    var (token, activity) = await WorkflowActivityFactory.Instance.CreatePausedActivity(this.GetType(), input.CorrelationId).ConfigureAwait(false);
-                    if (token != null && activity != null)
+                    var activity = await WorkflowActivityFactory.Instance.CreatePausedActivity(this.GetType(), input.CorrelationId).ConfigureAwait(false);
+                    if (activity != null)
                     {
-                        activity.TaskToken = token;
-                        await activity.Complete(new PpoOutput() { Applied = Applied } ).ConfigureAwait(false);
+                        await activity.Complete(new PpoOutput() { Applied = Applied }).ConfigureAwait(false);
                     }
                 }
             });
@@ -87,11 +86,12 @@ namespace CCC.CAS.Workflow4Api.Services
             if (!string.IsNullOrEmpty(input?.TaskToken))
             {
                 Logger.LogInformation(">>> {task} Completing parent task from....", nameof(PpoExit));
-                await Complete(input.TaskToken, new PpoOutput()).ConfigureAwait(false);
+                await Complete(new WorkflowActivityHandle(input.TaskToken), new PpoOutput()).ConfigureAwait(false);
                 await Complete(new PpoOutput()).ConfigureAwait(false);
-            } else
+            }
+            else
             {
-                await Fail(new WorkflowError { Reason = WorkflowError.ReasonCode.Error, Message = "No tasktoken in exit" } ).ConfigureAwait(false);
+                await Fail(new WorkflowError { Reason = WorkflowError.ReasonCode.Error, Message = "No tasktoken in exit" }).ConfigureAwait(false);
             }
         }
 

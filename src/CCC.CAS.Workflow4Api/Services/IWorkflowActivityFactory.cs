@@ -8,8 +8,8 @@ namespace CCC.CAS.Workflow2Service.Services
 {
     interface IWorkflowActivityFactory
     {
-        Task<(string? Token, IWorkflowActivity? Activity)> CreatePausedActivity(Type workflowActivityType, Guid correlationId);
-        Task<IWorkflowActivity?> CreateActivity(string taskName, IWorkflow workflow, string taskToken);
+        Task<IWorkflowActivity?> CreatePausedActivity(Type workflowActivityType, Guid correlationId);
+        Task<IWorkflowActivity?> CreateActivity(string taskName, IWorkflow workflow, WorkflowActivityHandle handle);
         List<string> ActivityNames { get; }
     }
 }

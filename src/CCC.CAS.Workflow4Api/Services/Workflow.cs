@@ -27,19 +27,19 @@ namespace CCC.CAS.Workflow2Service.Services
             _sfClient = StepFunctionClientFactory.GetClient();
         }
 
-        public Task Complete(string taskToken, string name, object? output)
+        public Task Complete(WorkflowActivityHandle handle, string name, object? output)
         {
             // TODO any other exceptions?
             return Policy
                     .Handle<TaskTimedOutException>()
                     // .Or<ArgumentException>(ex => ex.ParamName == "example")
                     .WaitAndRetry(_retries, retryAttempt => TimeSpan.FromSeconds(_retryDelaySeconds))
-                    .Execute(() => CompleteTask(taskToken, name, output));
+                    .Execute(() => CompleteTask(handle, name, output));
         }
 
         public Task Complete(WorkflowActivityBase activity, object? output)
         {
-            return Complete(activity.TaskToken, activity.GetType().Name, output);
+            return Complete(activity.Handle, activity.GetType().Name, output);
         }
 
         public async Task Fail(WorkflowActivityBase activity, WorkflowError error)
@@ -58,18 +58,18 @@ namespace CCC.CAS.Workflow2Service.Services
             await _workflowStateRepository.SaveActivityState(activity, correlationId).ConfigureAwait(false);
         }
 
-        public async Task<string?> RetrieveActivityState(Type activityType, Guid correlationId)
+        public async Task<WorkflowActivityHandle?> RetrieveActivityState(Type activityType, Guid correlationId)
         {
             return await _workflowStateRepository.RetrieveActivityState(activityType?.FullName ?? "", correlationId).ConfigureAwait(false);
         }
 
-        private async Task CompleteTask(string taskToken, string name, object? workDemoActivityState)
+        private async Task CompleteTask(WorkflowActivityHandle handle, string name, object? workDemoActivityState)
         {
             var respondActivityTaskCompletedRequest =
                 new SendTaskSuccessRequest()
                 {
                     Output = JsonSerializer.Serialize(workDemoActivityState),
-                    TaskToken = taskToken
+                    TaskToken = handle.Handle
                 };
 
             try
@@ -90,7 +90,7 @@ namespace CCC.CAS.Workflow2Service.Services
                 {
                     Cause = error.Reason.ToString(),
                     Error = error.Message,
-                    TaskToken = activity.TaskToken
+                    TaskToken = activity.Handle.Handle
                 };
 
             try

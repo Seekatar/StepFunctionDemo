@@ -42,9 +42,9 @@ namespace CCC.CAS.Workflow2Service.Services
             return base.Complete(output);
         }
 
-        public Task Complete(string taskToken, TOutput? output)
+        public Task Complete(WorkflowActivityHandle handle, TOutput? output)
         {
-            return base.Complete(taskToken, output);
+            return base.Complete(handle, output);
         }
 
     }

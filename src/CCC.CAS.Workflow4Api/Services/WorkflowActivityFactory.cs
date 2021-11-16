@@ -7,50 +7,45 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using CCC.CAS.API.Common.Logging;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
 #pragma warning disable CA1812
     class WorkflowActivityFactory : IWorkflowActivityFactory
     {
+        private readonly IServiceProvider _serviceProvider;
         private IWorkflowStateRepository _workflowStateRepository;
         private readonly ILogger<WorkflowActivityFactory> _logger;
-        private static Dictionary<string, (Type Type, IWorkflowActivity? Instance)> _activityDict = new();
+        private static Dictionary<string, Type> _activityNameToType = new();
         static IWorkflowActivityFactory? _me;
 
         static public IWorkflowActivityFactory? Instance => _me;
 
-        public WorkflowActivityFactory(IWorkflowStateRepository workflowStateRepository, ILogger<WorkflowActivityFactory> logger, IEnumerable<IWorkflowActivity> activities)
+        public WorkflowActivityFactory(IWorkflowStateRepository workflowStateRepository, ILogger<WorkflowActivityFactory> logger, IServiceProvider serviceProvider)
         {
+            _serviceProvider = serviceProvider;
             _workflowStateRepository = workflowStateRepository;
             _logger = logger;
-            foreach (var activity in activities)
-            {
-                var pair = _activityDict.Where(o => o.Value.Type == activity.GetType()).SingleOrDefault();
-                if (pair.Value.Type != null)
-                {
-                    _activityDict[pair.Key] = (pair.Value.Type, activity);
-                }
-            }
             _me = this;
         }
 
-        public List<string> ActivityNames => _activityDict.Keys.ToList();
+        public List<string> ActivityNames => _activityNameToType.Keys.ToList();
 
         public static void Register(IConfiguration _, IServiceCollection services, ILogger logger)
         {
-            Load(logger);
-            foreach ( var act in _activityDict)
+            LoadActivityTypes(logger);
+            foreach (var act in _activityNameToType)
             {
-                services.AddSingleton(typeof(IWorkflowActivity), act.Value.Type);
+                services.AddTransient(act.Value);
             }
         }
 
-        private static void Load(ILogger logger)
+        private static void LoadActivityTypes(ILogger logger)
         {
-            lock (_activityDict)
+            lock (_activityNameToType)
             {
-                if (_activityDict.Any())
+                if (_activityNameToType.Any())
                 {
                     return;
                 }
@@ -62,7 +57,7 @@ namespace CCC.CAS.Workflow2Service.Services
                 {
                     if (activityType.GetCustomAttributes(typeof(WorkflowAttribute), false).FirstOrDefault() is WorkflowAttribute attr)
                     {
-                        _activityDict[attr.Name] = new (activityType, null);
+                        _activityNameToType[attr.Name] = activityType;
                     }
                     else
                     {
@@ -72,30 +67,52 @@ namespace CCC.CAS.Workflow2Service.Services
             }
         }
 
-        public Task<IWorkflowActivity?> CreateActivity(string taskName, IWorkflow workflow, string taskToken)
+        public Task<IWorkflowActivity?> CreateActivity(string taskName, IWorkflow workflow, WorkflowActivityHandle handle)
         {
             IWorkflowActivity? ret = null;
 
-            if (_activityDict.ContainsKey(taskName))
+            if (_activityNameToType.ContainsKey(taskName))
             {
-                ret = _activityDict[taskName].Instance;
+                ret = _serviceProvider.GetRequiredService(_activityNameToType[taskName]) as IWorkflowActivity;
+            }
+
+            if (ret != null)
+            {
+                ret.Handle = handle;
+            }
+            else
+            {
+                _logger.LogError("{taskName} has no activity type", taskName);
             }
             return Task.FromResult(ret);
         }
 
-        public async Task<(string? Token, IWorkflowActivity? Activity)> CreatePausedActivity(Type workflowActivityType, Guid correlationId)
+        public async Task<IWorkflowActivity?> CreatePausedActivity(Type workflowActivityType, Guid correlationId)
         {
-            var value = _activityDict.Values.Where(o => o.Type == workflowActivityType).SingleOrDefault();
+            if (workflowActivityType?.FullName == null) throw new ArgumentNullException(nameof(workflowActivityType));
 
-            if (value.Type?.FullName != null)
+            IWorkflowActivity? ret;
+
+            ret = _serviceProvider.GetRequiredService(workflowActivityType) as IWorkflowActivity;
+            var taskName = workflowActivityType.Name;
+
+            if (ret != null)
             {
-                var token = await _workflowStateRepository!.RetrieveActivityState(value.Type.FullName, correlationId).ConfigureAwait(false);
-                if (token != null)
+                var handle = await _workflowStateRepository!.RetrieveActivityState(workflowActivityType.FullName, correlationId).ConfigureAwait(false);
+                if (handle != null)
                 {
-                    return (token,value.Instance);
+                    ret.Handle = handle;
+                }
+                else
+                {
+                    _logger.LogError(correlationId, "{taskName} has no activity type", taskName);
                 }
             }
-            return (null,null);
+            else
+            {
+                _logger.LogError(correlationId, "{taskName} has no activity type", taskName);
+            }
+            return ret;
         }
 
         public static List<Type> GetTypesInLoadedAssemblies(Predicate<Type> predicate, string assemblyPrefix = "CCC.")

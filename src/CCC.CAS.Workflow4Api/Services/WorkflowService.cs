@@ -25,12 +25,14 @@ namespace CCC.CAS.Workflow4Api.Services
             _logger = logger;
         }
 
-        public async Task RestartWorkflow(string taskToken)
+        public async Task RestartWorkflow(WorkflowActivityHandle handle)
         {
+            if (handle == null) throw new ArgumentNullException(nameof(handle));
+
             using var sfClient = StepFunctionClientFactory.GetClient();
             var result = await sfClient.SendTaskSuccessAsync(new Amazon.StepFunctions.Model.SendTaskSuccessRequest
             {
-                TaskToken = taskToken,
+                TaskToken = handle.Handle,
                 Output = "{\"i\":1}"
             }).ConfigureAwait(false);
         }

@@ -12,11 +12,6 @@ using System.Threading.Tasks;
 
 namespace CCC.CAS.Workflow4Api.Controllers
 {
-    public class blah
-    {
-        public string TaskToken { get; set; } = "";
-    }
-
 #pragma warning disable CA1812
     [ApiController]
     public class Workflow : Controller
@@ -71,11 +66,14 @@ namespace CCC.CAS.Workflow4Api.Controllers
         [Route("/api/workflow/restart")]
         [SwaggerOperation("StartWorkflow")]
         [SwaggerResponse(statusCode: 201, type: typeof(string), description: "Demo")]
-        public async Task<ActionResult> Restart([FromBody]blah b)
+        public async Task<ActionResult> Restart([FromBody]WorkflowActivityHandle handle)
         {
             try
             {
-                await _workflowService.RestartWorkflow(b?.TaskToken ?? "").ConfigureAwait(false);
+                if (handle != null)
+                {
+                    await _workflowService.RestartWorkflow(handle).ConfigureAwait(false);
+                }
                 return Ok();
             }
             catch (Exception e)

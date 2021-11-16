@@ -77,17 +77,17 @@ namespace CCC.CAS.Workflow2Service.Services
                     continue;
 
                 WorkDemoActivityState? workDemoActivityState = null;
+                var handle = new WorkflowActivityHandle(activityTask.TaskToken);
                 try
                 {
-                    var activity = await _workflowActivityFactory.CreateActivity(taskName, _workflow!, activityTask.TaskToken).ConfigureAwait(false);
+                    var activity = await _workflowActivityFactory.CreateActivity(taskName, _workflow!, handle).ConfigureAwait(false);
                     if (activity != null)
                     {
                         await activity.Start(activityTask.Input).ConfigureAwait(false);
                     }
                     else // Demo, old way
                     {
-                        workDemoActivityState = JsonSerializer
-                            .Deserialize<WorkDemoActivityState>(activityTask.Input);
+                        workDemoActivityState = JsonSerializer.Deserialize<WorkDemoActivityState>(activityTask.Input);
 
                         _logger.LogInformation(">>> {task} fired with state {scenario}", taskName, workDemoActivityState?.ScenarioNumber ?? -1);
 
@@ -99,7 +99,7 @@ namespace CCC.CAS.Workflow2Service.Services
                                 if (workDemoActivityState.ClientCode.Equals("USAA", StringComparison.OrdinalIgnoreCase))
                                 {
                                     _logger.LogInformation(">>> {task} Completing....", taskName);
-                                    await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
+                                    await CompleteTask(sfClient, new WorkflowActivityHandle(activityTask.TaskToken), workDemoActivityState).ConfigureAwait(false); ;
                                     errorOut = false;
                                 }
                                 else if (workDemoActivityState.ClientCode.Equals("GEICO", StringComparison.OrdinalIgnoreCase))
@@ -111,14 +111,14 @@ namespace CCC.CAS.Workflow2Service.Services
                                 else
                                 {
                                     _logger.LogInformation(">>> {task} Failing....", taskName);
-                                    await FailTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
+                                    await FailTask(sfClient, new WorkflowActivityHandle(activityTask.TaskToken), workDemoActivityState).ConfigureAwait(false); ;
                                     errorOut = false;
                                 }
                             }
                             else
                             {
                                 _logger.LogInformation(">>> {task} Completing....", taskName);
-                                await CompleteTask(sfClient, activityTask.TaskToken, workDemoActivityState).ConfigureAwait(false); ;
+                                await CompleteTask(sfClient, new WorkflowActivityHandle(activityTask.TaskToken), workDemoActivityState).ConfigureAwait(false); ;
                                 errorOut = false;
                             }
                             if (!errorOut && taskName == "Cas-Rbr-Ppo-Exit")
@@ -126,7 +126,7 @@ namespace CCC.CAS.Workflow2Service.Services
                                 if (!string.IsNullOrEmpty(workDemoActivityState.TaskToken))
                                 {
                                     _logger.LogInformation(">>> {task} Completing parent task from....", taskName);
-                                    await CompleteTask(sfClient, workDemoActivityState.TaskToken, workDemoActivityState).ConfigureAwait(false);
+                                    await CompleteTask(sfClient, new WorkflowActivityHandle(activityTask.TaskToken), workDemoActivityState).ConfigureAwait(false);
                                 }
                             }
                         }
@@ -141,21 +141,21 @@ namespace CCC.CAS.Workflow2Service.Services
                     _logger.LogError(e, "Error processing task {task}", taskName);
                     if (errorOut)
                     {
-                        await FailTask(sfClient, activityTask.TaskToken, workDemoActivityState ?? new WorkDemoActivityState()).ConfigureAwait(false); ;
+                        await FailTask(sfClient, new WorkflowActivityHandle(activityTask.TaskToken), workDemoActivityState ?? new WorkDemoActivityState()).ConfigureAwait(false); ;
                     }
                 }
                 Thread.Sleep(100);
             }
         }
 
-        private async Task FailTask(AmazonStepFunctionsClient sfClient, string taskToken, WorkDemoActivityState workDemoActivityState)
+        private async Task FailTask(AmazonStepFunctionsClient sfClient, WorkflowActivityHandle handle, WorkDemoActivityState workDemoActivityState)
         {
             var respondActivityTaskCompletedRequest =
                 new SendTaskFailureRequest()
                 {
                     Cause = "Because",
                     Error = "Ouch!",
-                    TaskToken = taskToken
+                    TaskToken = handle.Handle
                 };
 
             try
@@ -206,14 +206,14 @@ namespace CCC.CAS.Workflow2Service.Services
 
         private async Task CompleteTask(
             AmazonStepFunctionsClient amazonSimpleWorkflowClient,
-            string taskToken, WorkDemoActivityState workDemoActivityState)
+            WorkflowActivityHandle handle, WorkDemoActivityState workDemoActivityState)
         {
 
             var respondActivityTaskCompletedRequest =
                 new SendTaskSuccessRequest()
                 {
                     Output = JsonSerializer.Serialize(workDemoActivityState),
-                    TaskToken = taskToken
+                    TaskToken = handle.Handle
                 };
 
             try

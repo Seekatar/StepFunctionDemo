@@ -5,9 +5,17 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using Polly;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+
+public class ActivityStateNotFoundException : Exception
+{
+    public ActivityStateNotFoundException() { }
+    public ActivityStateNotFoundException(string msg) : base(msg) { }
+    public ActivityStateNotFoundException(string msg, Exception innerException) : base(msg, innerException) { }
+}
 
 public class WorkflowStateRepository : IWorkflowStateRepository
 {
@@ -26,8 +34,8 @@ public class WorkflowStateRepository : IWorkflowStateRepository
         public string ActivityFullName { get; set; } = "";
         [BsonElement(correlationId)]
         public Guid CorrelationId { get; set; }
-        [BsonElement("taskToken ")]
-        public string TaskToken { get; set; } = "";
+        [BsonElement("handle")]
+        public WorkflowActivityHandle Handle { get; set; } = new WorkflowActivityHandle();
         [BsonElement("creationTime")]
         public DateTime CreationTime { get; set; }
     }
@@ -41,35 +49,54 @@ public class WorkflowStateRepository : IWorkflowStateRepository
         _database = _client.GetDatabase(dbName);
     }
 
-    public async Task<string?> RetrieveActivityState(string activityTypeName, Guid correlationId)
+    public Task<WorkflowActivityHandle?> RetrieveActivityState(string activityTypeName, Guid correlationId)
     {
-        if (activityTypeName == null) throw new ArgumentNullException(nameof(activityTypeName));
+        // race condition if the activity Start returns as Incomplete, but immediately then calls Complete
+        // but the Save hasn't completed yet.
+        var _retries = 3;
+        var _retryDelayMs = 200;
+        return Policy
+                .Handle<ActivityStateNotFoundException>()
+                // .Or<ArgumentException>(ex => ex.ParamName == "example")
+                .WaitAndRetry(_retries, retryAttempt => TimeSpan.FromMilliseconds(_retryDelayMs))
+                .Execute(async () =>
+                {
+                    if (activityTypeName == null) throw new ArgumentNullException(nameof(activityTypeName));
 
-        var coll = _database.GetCollection<ActivityState>(_collectionName);
+                    var coll = _database.GetCollection<ActivityState>(_collectionName);
 
-        var filter = Builders<ActivityState>.Filter
-            .And(Builders<ActivityState>.Filter.Eq(ActivityState.activityFullName, activityTypeName),
-                 Builders<ActivityState>.Filter.Eq(ActivityState.correlationId, correlationId));
-        var query = coll.Find(filter);
-        var ret = (await query.ToListAsync().ConfigureAwait(false)).SingleOrDefault()?.TaskToken;
-        if (ret != null)
-        {
-            await coll.DeleteOneAsync(filter).ConfigureAwait(false);
-        }
-        return ret;
+                    var filter = Builders<ActivityState>.Filter
+                        .And(Builders<ActivityState>.Filter.Eq(ActivityState.activityFullName, activityTypeName),
+                             Builders<ActivityState>.Filter.Eq(ActivityState.correlationId, correlationId));
+                    var query = coll.Find(filter);
+                    WorkflowActivityHandle? ret = (await query.ToListAsync().ConfigureAwait(false)).SingleOrDefault()?.Handle;
+
+                    if (ret == null) throw new ActivityStateNotFoundException();
+                    
+                    if (ret != null)
+                    {
+                        await coll.DeleteOneAsync(filter).ConfigureAwait(false);
+                        return ret;
+                    }
+                    return null;
+                });
     }
 
     public async Task SaveActivityState(IWorkflowActivity activity, Guid correlationId)
     {
         if (activity == null) throw new ArgumentNullException(nameof(activity));
+        if (!activity.Handle.IsValid) throw new ArgumentException($"Invalid handle for activity with correlationId {correlationId}");
+
         Type t = activity!.GetType();
         if (t.FullName == null) throw new ArgumentNullException(nameof(activity));
 
         var coll = _database.GetCollection<ActivityState>(_collectionName);
-        await coll.InsertOneAsync(new ActivityState { 
-                    ActivityFullName = t!.FullName, 
-                    CorrelationId = correlationId, 
-                    TaskToken = activity.TaskToken,
-                    CreationTime = DateTime.UtcNow }).ConfigureAwait(false);
+        await coll.InsertOneAsync(new ActivityState
+        {
+            ActivityFullName = t!.FullName,
+            CorrelationId = correlationId,
+            Handle = activity.Handle,
+            CreationTime = DateTime.UtcNow
+        }).ConfigureAwait(false);
     }
 }
