@@ -5,12 +5,15 @@ namespace CCC.CAS.Workflow2Service.Services
 {
     public class WorkDemoActivityState
     {
-        /// <example>USAA</example>
+        /// <example>f8659a63-6850-4d06-9bba-576c7084936a</example>
         public string CorrelationId { get; set; } = "";
+
+        /// <example>f8659a63-6850-4d06-9bba-576c7084936a</example>
         public string RequestId { get; set; } = "";
 
         /// <example>USAA</example>
         public string ClientCode { get; set; } = "";
+
         /// <example>1</example>
         public int ProfileId { get; set; }
 

@@ -26,10 +26,10 @@ namespace CCC.CAS.Workflow2Service.Services
             _logger = logger;
             foreach (var activity in activities)
             {
-                var value = _activityDict.Values.Where(o => o.Type == activity.GetType()).SingleOrDefault();
-                if (value.Type != null)
+                var pair = _activityDict.Where(o => o.Value.Type == activity.GetType()).SingleOrDefault();
+                if (pair.Value.Type != null)
                 {
-                    value.Instance = activity;
+                    _activityDict[pair.Key] = (pair.Value.Type, activity);
                 }
             }
             _me = this;

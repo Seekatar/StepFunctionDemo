@@ -31,7 +31,7 @@ namespace CCC.CAS.Workflow2Service.Services
             }
             catch (Exception e) when (e is JsonException || e is NotSupportedException)
             {
-                await Fail (new WorkflowError { ActivityName = GetType().Name, Reason = WorkflowError.ReasonCode.Error, Message = "Json deserialation error. " + e }).ConfigureAwait(false);
+                await Fail(new WorkflowError { ActivityName = GetType().Name, Reason = WorkflowError.ReasonCode.Error, Message = "Json deserialation error. " + e }).ConfigureAwait(false);
             }
         }
 

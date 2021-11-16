@@ -10,19 +10,21 @@ namespace CCC.CAS.Workflow4Api.Services
 {
     class PpoOutput
     {
-
+        public bool Applied { get; set; }
     }
 
-    class TestPpo : WorkflowActivity<ActivityInputBase, PpoOutput>
+    class TestPpoBase : WorkflowActivity<ActivityInputBase, PpoOutput>
     {
-        protected TestPpo(IWorkflow workflow, ILogger logger) : base(workflow, logger)
+        protected TestPpoBase(IWorkflow workflow, ILogger logger) : base(workflow, logger)
         {
         }
+
+        public bool Applied { get; set; }
 
         public override Task Start(ActivityInputBase? input)
         {
             // fake out long running task
-            return Task.Run(async () =>
+            Task.Run(async () =>
             {
                 await Task.Delay(5000).ConfigureAwait(false);
                 Logger.LogInformation("{activityName} completed!", this.GetType().Name);
@@ -32,17 +34,19 @@ namespace CCC.CAS.Workflow4Api.Services
                     if (token != null && activity != null)
                     {
                         activity.TaskToken = token;
-                        await activity.Complete(new PpoOutput()).ConfigureAwait(false);
+                        await activity.Complete(new PpoOutput() { Applied = Applied } ).ConfigureAwait(false);
                     }
                 }
             });
+
+            return Task.CompletedTask;
         }
 
     }
 
 #pragma warning disable CA1812 // never instantiated
     [Workflow(Name = "Cas-Rbr-Ppo1")]
-    class Ppo1 : TestPpo
+    class Ppo1 : TestPpoBase
     {
         public Ppo1(IWorkflow workflow, ILogger<Ppo1> logger) : base(workflow, logger)
         {
@@ -50,15 +54,16 @@ namespace CCC.CAS.Workflow4Api.Services
     }
 
     [Workflow(Name = "Cas-Rbr-Ppo2")]
-    class Ppo2 : TestPpo
+    class Ppo2 : TestPpoBase
     {
         public Ppo2(IWorkflow workflow, ILogger<Ppo2> logger) : base(workflow, logger)
         {
+            Applied = true;
         }
     }
 
     [Workflow(Name = "Cas-Rbr-Ppon")]
-    class Ppon : TestPpo
+    class Ppon : TestPpoBase
     {
         public Ppon(IWorkflow workflow, ILogger<Ppon> logger) : base(workflow, logger)
         {
