@@ -11,8 +11,9 @@ namespace CCC.CAS.Workflow2Service.Services
         {
         }
 
-        public async override Task Start(string input)
+        public async override Task Start(string input, WorkflowActivityHandle handle)
         {
+            Handle = handle;
             try
             {
                 var inputObj = JsonSerializer.Deserialize<TInput>(input, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

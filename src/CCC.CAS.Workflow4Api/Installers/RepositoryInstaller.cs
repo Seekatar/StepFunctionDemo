@@ -9,6 +9,8 @@ using CCC.CAS.Workflow4Api.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Seekatar.Interfaces;
+using Seekatar.Tools;
 
 namespace CCC.CAS.Workflow4Api.Installers
 {
@@ -38,11 +40,9 @@ namespace CCC.CAS.Workflow4Api.Installers
                          .Bind(section)
                          .ValidateDataAnnotations();
 
-                WorkflowActivityFactory.Register(configuration, services, _debugLogger);
-
+                services.AddSingleton<IObjectFactory<IWorkflowActivity>,ObjectFactoryUsingNameAttribute<IWorkflowActivity>>();
                 services.AddSingleton<IWorkflow, Workflow>();
                 services.AddSingleton<IWorkflowService, WorkflowService>();
-                services.AddSingleton<IWorkflowActivityFactory, WorkflowActivityFactory>();
 
                 _debugLogger.LogDebug("Services added.");
             }

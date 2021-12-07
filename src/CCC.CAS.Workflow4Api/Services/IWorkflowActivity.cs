@@ -13,13 +13,13 @@ namespace CCC.CAS.Workflow2Service.Services
 
     public interface IWorkflowActivity
     {
-        Task Start(string input);
+        Task Start(string input, WorkflowActivityHandle handle);
 
         Task Complete(object? output);
 
         Task Fail(WorkflowError workflowError);
 
-        WorkflowActivityHandle Handle { get; set; }
+        WorkflowActivityHandle Handle { get; set;  }
     }
 }
 

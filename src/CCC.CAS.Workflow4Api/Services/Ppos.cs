@@ -1,6 +1,8 @@
 ﻿using Amazon.StepFunctions;
 using CCC.CAS.Workflow2Service.Services;
 using Microsoft.Extensions.Logging;
+using Seekatar.Interfaces;
+using Seekatar.Tools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,6 +23,9 @@ namespace CCC.CAS.Workflow4Api.Services
 
         public bool Applied { get; set; }
 
+        // ugly static just for testing async workflow activity
+        public static IObjectFactory<IWorkflowActivity>? WorkflowActivityFactory { get; set; }
+
         public override Task Start(ActivityInputBase? input)
         {
             // fake out long running task
@@ -28,9 +33,9 @@ namespace CCC.CAS.Workflow4Api.Services
             {
                 await Task.Delay(5000).ConfigureAwait(false);
                 Logger.LogInformation("{activityName} completed!", this.GetType().Name);
-                if (WorkflowActivityFactory.Instance != null && input != null)
+                if (WorkflowActivityFactory != null && input != null)
                 {
-                    var activity = await WorkflowActivityFactory.Instance.CreatePausedActivity(this.GetType(), input.CorrelationId).ConfigureAwait(false);
+                    var activity = await Workflow.CreatePausedActivity(this.GetType(), input.CorrelationId).ConfigureAwait(false);
                     if (activity != null)
                     {
                         await activity.Complete(new PpoOutput() { Applied = Applied }).ConfigureAwait(false);
@@ -44,7 +49,7 @@ namespace CCC.CAS.Workflow4Api.Services
     }
 
 #pragma warning disable CA1812 // never instantiated
-    [Workflow(Name = "Cas-Rbr-Ppo1")]
+    [ObjectName(Name = "Cas-Rbr-Ppo1")]
     class Ppo1 : TestPpoBase
     {
         public Ppo1(IWorkflow workflow, ILogger<Ppo1> logger) : base(workflow, logger)
@@ -52,7 +57,7 @@ namespace CCC.CAS.Workflow4Api.Services
         }
     }
 
-    [Workflow(Name = "Cas-Rbr-Ppo2")]
+    [ObjectName(Name = "Cas-Rbr-Ppo2")]
     class Ppo2 : TestPpoBase
     {
         public Ppo2(IWorkflow workflow, ILogger<Ppo2> logger) : base(workflow, logger)
@@ -61,7 +66,7 @@ namespace CCC.CAS.Workflow4Api.Services
         }
     }
 
-    [Workflow(Name = "Cas-Rbr-Ppon")]
+    [ObjectName(Name = "Cas-Rbr-Ppon")]
     class Ppon : TestPpoBase
     {
         public Ppon(IWorkflow workflow, ILogger<Ppon> logger) : base(workflow, logger)
@@ -74,7 +79,7 @@ namespace CCC.CAS.Workflow4Api.Services
         public string TaskToken { get; set; } = "";
     }
 
-    [Workflow(Name = "Cas-Rbr-Ppo-Exit")]
+    [ObjectName(Name = "Cas-Rbr-Ppo-Exit")]
     class PpoExit : WorkflowActivity<PpoExitInput, PpoOutput>
     {
         public PpoExit(IWorkflow workflow, ILogger<PpoExit> logger) : base(workflow, logger)

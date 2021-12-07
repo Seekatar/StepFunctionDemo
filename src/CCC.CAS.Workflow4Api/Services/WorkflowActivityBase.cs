@@ -21,7 +21,7 @@ namespace CCC.CAS.Workflow2Service.Services
 
         public bool IsActivityComplete => _completed;
 
-        public abstract Task Start(string input);
+        public abstract Task Start(string input, WorkflowActivityHandle handle);
 
         public async Task Complete(object? output)
         {
@@ -33,7 +33,6 @@ namespace CCC.CAS.Workflow2Service.Services
             await _workflow.Complete(handle, GetType().Name, output).ConfigureAwait(false);
             _completed = true;
         }
-
 
         public async Task Fail(WorkflowError error)
         {

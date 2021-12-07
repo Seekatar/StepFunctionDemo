@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
-using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -12,8 +11,9 @@ using System.Threading.Tasks;
 using Amazon.StepFunctions;
 using Amazon.StepFunctions.Model;
 using System.Collections.Generic;
-using CCC.CAS.API.Common.Installers;
 using CCC.CAS.Workflow4Api.Services;
+using Seekatar.Tools;
+using Seekatar.Interfaces;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
@@ -21,8 +21,8 @@ namespace CCC.CAS.Workflow2Service.Services
 
     class AwsWorkflowActivityService : BackgroundService
     {
-        private ILogger<AwsWorkflowActivityService> _logger;
-        private readonly IWorkflowActivityFactory _workflowActivityFactory;
+        private readonly ILogger<AwsWorkflowActivityService> _logger;
+        private readonly IObjectFactory<IWorkflowActivity> _workflowActivityFactory;
         const string _arnBase = "arn:aws:states:us-east-1:620135122039:activity:";
         readonly string[] _myActivities = {  "Cas-Rbr-DemoActivity1",
                                     "Cas-Rbr-DemoActivity2",
@@ -30,17 +30,15 @@ namespace CCC.CAS.Workflow2Service.Services
                                     "Cas-Rbr-DemoActivity4",
                                     "Cas-Rbr-DocMain",
         };
-        IWorkflow _workflow;
-        private IEnumerable<IWorkflowActivity> _activities;
 
-        public AwsWorkflowActivityService(ILogger<AwsWorkflowActivityService> logger, 
-                                            IWorkflowActivityFactory workflowActivityFactory, IWorkflow workflow, 
-                                            IEnumerable<IWorkflowActivity> activities)
+        public AwsWorkflowActivityService(ILogger<AwsWorkflowActivityService> logger,
+                                            IObjectFactory<IWorkflowActivity> workflowActivityFactory)
         {
             _logger = logger;
             _workflowActivityFactory = workflowActivityFactory;
-            _workflow = workflow;
-            _activities = activities;
+
+            // TESTING ONLY
+            TestPpoBase.WorkflowActivityFactory = _workflowActivityFactory;
         }
 
 
@@ -56,7 +54,7 @@ namespace CCC.CAS.Workflow2Service.Services
             {
                 tasks.Add(PollForActivity($"{_arnBase}{arn}", sfClient, stoppingToken));
             }
-            foreach (var arn in _workflowActivityFactory.ActivityNames )
+            foreach (var arn in _workflowActivityFactory.LoadedTypes.Keys)
             {
                 tasks.Add(PollForActivity($"{_arnBase}{arn}", sfClient, stoppingToken));
             }
@@ -80,10 +78,10 @@ namespace CCC.CAS.Workflow2Service.Services
                 var handle = new WorkflowActivityHandle(activityTask.TaskToken);
                 try
                 {
-                    var activity = await _workflowActivityFactory.CreateActivity(taskName, _workflow!, handle).ConfigureAwait(false);
+                    var activity = _workflowActivityFactory.GetInstance(taskName);
                     if (activity != null)
-                    {
-                        await activity.Start(activityTask.Input).ConfigureAwait(false);
+                    {    
+                         await activity.Start(activityTask.Input, handle).ConfigureAwait(false);
                     }
                     else // Demo, old way
                     {
@@ -180,7 +178,7 @@ namespace CCC.CAS.Workflow2Service.Services
                     _logger.LogInformation("Added activity {activity}", a);
                 }
             }
-            foreach (var a in _workflowActivityFactory.ActivityNames)
+            foreach (var a in _workflowActivityFactory.LoadedTypes.Keys)
             {
                 if (!activities.Activities.Any(o => o.Name == a))
                 {

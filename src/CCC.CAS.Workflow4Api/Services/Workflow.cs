@@ -7,6 +7,9 @@ using Amazon.StepFunctions.Model;
 using Polly;
 using System.Collections.Generic;
 using CCC.CAS.Workflow4Api.Services;
+using Seekatar.Tools;
+using CCC.CAS.API.Common.Logging;
+using Seekatar.Interfaces;
 
 namespace CCC.CAS.Workflow2Service.Services
 {
@@ -19,12 +22,14 @@ namespace CCC.CAS.Workflow2Service.Services
         private readonly ILogger<Workflow> _logger;
         private readonly IWorkflowStateRepository _workflowStateRepository;
         private readonly AmazonStepFunctionsClient _sfClient;
+        private readonly IObjectFactory<IWorkflowActivity> _workflowActivityFactory;
 
-        public Workflow(ILogger<Workflow> logger, IWorkflowStateRepository workflowStateRepository)
+        public Workflow(ILogger<Workflow> logger, IWorkflowStateRepository workflowStateRepository, IObjectFactory<IWorkflowActivity> workflowActivityFactory)
         {
             _logger = logger;
             _workflowStateRepository = workflowStateRepository;
             _sfClient = StepFunctionClientFactory.GetClient();
+            _workflowActivityFactory = workflowActivityFactory;
         }
 
         public Task Complete(WorkflowActivityHandle handle, string name, object? output)
@@ -61,6 +66,32 @@ namespace CCC.CAS.Workflow2Service.Services
         public async Task<WorkflowActivityHandle?> RetrieveActivityState(Type activityType, Guid correlationId)
         {
             return await _workflowStateRepository.RetrieveActivityState(activityType?.FullName ?? "", correlationId).ConfigureAwait(false);
+        }
+
+        public async Task<IWorkflowActivity?> CreatePausedActivity(Type workflowActivityType, Guid correlationId)
+        {
+            if (workflowActivityType?.FullName == null) throw new ArgumentNullException(nameof(workflowActivityType));
+
+            IWorkflowActivity? ret = null;
+
+            var handle = await RetrieveActivityState(workflowActivityType, correlationId).ConfigureAwait(false);
+            if (handle != null)
+            {
+                ret = _workflowActivityFactory.GetInstance(workflowActivityType);
+                if (ret != null)
+                {
+                    ret.Handle = handle;
+                }
+                else
+                {
+                    _logger.LogError(correlationId, "No activity type found for {activityType}", workflowActivityType.FullName);
+                }
+            }
+            else
+            {
+                _logger.LogError(correlationId, "No saved activity for correlationId");
+            }
+            return ret;
         }
 
         private async Task CompleteTask(WorkflowActivityHandle handle, string name, object? workDemoActivityState)

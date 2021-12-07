@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <NoWarn>1701;1702;1591;CA1303;CA1031</NoWarn>
     <Version>1.0.0</Version>
@@ -24,7 +24,7 @@
   <ItemGroup>
     <PackageReference Include="AWSSDK.StepFunctions" Version="3.3.104.87" />
     <PackageReference Include="CCC.CAS.API.AspNetCommon" Version="1.1.5" />
-    <PackageReference Include="CCC.CAS.API.AspNetCommon" Version="5.0.5" />
+    <PackageReference Include="CCC.CAS.API.AspNetCommon" Version="5.0.5.3" />
     <PackageReference Include="Microsoft.CodeQuality.Analyzers" Version="3.3.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -36,6 +36,7 @@
     </PackageReference>
     <PackageReference Include="mongocsharpdriver" Version="2.12.4" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.8" />
+    <PackageReference Include="Seekatar.Tools" Version="0.0.1.4" />
     <PackageReference Include="Serilog.Enrichers.AspNetCore" Version="1.0.0" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="2.1.3" />
     <PackageReference Include="Serilog.Enrichers.Thread" Version="3.1.0" />

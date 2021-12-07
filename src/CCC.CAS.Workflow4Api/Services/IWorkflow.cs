@@ -10,6 +10,7 @@ namespace CCC.CAS.Workflow2Service.Services
         Task Fail(WorkflowActivityBase activity, WorkflowError error);
         Task SaveActivityState(IWorkflowActivity activity, Guid correlationId);
         Task<WorkflowActivityHandle?> RetrieveActivityState(Type activityType, Guid correlationId);
+        Task<IWorkflowActivity?> CreatePausedActivity(Type workflowActivityType, Guid correlationId);
     }
 }
 
